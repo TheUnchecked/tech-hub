@@ -1,0 +1,54 @@
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PowerShell
+*.ps1.bak
+*.psm1.bak
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# Environment / secrets
+.env
+.env.*
+*.secret
+secrets/
+credentials/
+
+# Certificates / private keys
+*.pfx
+*.p12
+*.key
+*.pem
+
+# Archives
+*.zip
+*.7z
+*.rar
+
+# OS / editor files
+.DS_Store
+
+# Build / generated files
+dist/
+build/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
