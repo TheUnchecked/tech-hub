@@ -16,6 +16,8 @@ function New-TechHubADFinding {
         [Parameter(Mandatory)]
         [string]$Description,
 
+        [string]$Category = 'Delegation',
+
         [Parameter(Mandatory)]
         [string]$Severity,
 
@@ -69,7 +71,7 @@ function New-TechHubADFinding {
         FindingId          = ([guid]::NewGuid()).Guid
         Title              = $Title
         Description        = $Description
-        Category           = 'Delegation'
+        Category           = $Category
         Severity           = $Severity
         Confidence         = $Confidence
         Status             = $Status

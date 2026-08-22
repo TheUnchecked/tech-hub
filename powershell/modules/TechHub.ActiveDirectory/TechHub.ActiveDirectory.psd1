@@ -12,6 +12,9 @@
 
     FunctionsToExport = @(
         'Get-TechHubADUnconstrainedDelegation'
+        'Get-TechHubADConstrainedDelegation'
+        'Get-TechHubADRBCD'
+        'Get-TechHubADPrivilegedGroup'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
