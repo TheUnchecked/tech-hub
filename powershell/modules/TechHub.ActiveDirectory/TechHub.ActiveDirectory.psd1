@@ -15,6 +15,10 @@
         'Get-TechHubADConstrainedDelegation'
         'Get-TechHubADRBCD'
         'Get-TechHubADPrivilegedGroup'
+        'New-TechHubADProvider'
+        'New-TechHubADAssessmentResult'
+        'New-TechHubADCheckRegistry'
+        'Invoke-TechHubADAssessment'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
