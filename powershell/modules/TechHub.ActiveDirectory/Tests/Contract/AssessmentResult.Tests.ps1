@@ -1,10 +1,19 @@
-$ModuleRoot = Join-Path -Path $PSScriptRoot -ChildPath '..\..\..'
+
 
 Describe 'TechHubADAssessmentResult' {
-    BeforeAll {
-        Import-Module -Name (Join-Path -Path $ModuleRoot -ChildPath 'TechHub.ActiveDirectory.psm1') -Force -ErrorAction Stop
+BeforeAll {
+    $TestFile = $PSCommandPath
+
+    if ([string]::IsNullOrWhiteSpace($TestFile)) {
+        throw 'Unable to determine test file path.'
     }
 
+    $ModuleRoot = Split-Path -Parent $TestFile
+    $ModuleRoot = Split-Path -Parent $ModuleRoot
+    $ModuleRoot = Split-Path -Parent $ModuleRoot
+
+    Import-Module -Name (Join-Path -Path $ModuleRoot -ChildPath 'TechHub.ActiveDirectory.psm1') -Force -ErrorAction Stop
+}
     AfterAll {
         Remove-Module -Name TechHub.ActiveDirectory -Force -ErrorAction SilentlyContinue
     }

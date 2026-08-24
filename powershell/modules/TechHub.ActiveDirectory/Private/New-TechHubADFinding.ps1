@@ -40,7 +40,7 @@ function New-TechHubADFinding {
         [string]$SamAccountName,
 
         [AllowNull()]
-        [Guid]$ObjectGuid,
+        [Nullable[Guid]]$ObjectGuid,
 
         [Parameter(Mandatory)]
         [object]$Evidence,
@@ -65,29 +65,29 @@ function New-TechHubADFinding {
     )
 
     [PSCustomObject][ordered]@{
-        AssessmentId       = $AssessmentId
-        CheckId            = $CheckId
-        CheckName          = $CheckName
-        FindingId          = ([guid]::NewGuid()).Guid
-        Title              = $Title
-        Description        = $Description
-        Category           = $Category
-        Severity           = $Severity
-        Confidence         = $Confidence
-        Status             = $Status
-        AffectedObject     = $AffectedObject
-        ObjectType         = $ObjectType
-        DistinguishedName  = $DistinguishedName
-        SamAccountName     = $SamAccountName
-        ObjectGuid         = $ObjectGuid
-        Evidence           = $Evidence
-        Risk               = $Risk
-        Recommendation     = $Recommendation
-        References         = $References
-        CollectedAt        = (Get-Date).ToUniversalTime()
-        Domain             = $Domain
-        Forest             = $Forest
-        DomainController   = $DomainController
-        IsReadOnly         = $true
+        AssessmentId      = $AssessmentId
+        CheckId           = $CheckId
+        CheckName         = $CheckName
+        FindingId         = ([guid]::NewGuid()).Guid
+        Title             = $Title
+        Description       = $Description
+        Category          = $Category
+        Severity          = $Severity
+        Confidence        = $Confidence
+        Status            = $Status
+        AffectedObject    = $AffectedObject
+        ObjectType        = $ObjectType
+        DistinguishedName = $DistinguishedName
+        SamAccountName    = $SamAccountName
+        ObjectGuid        = $ObjectGuid
+        Evidence          = $Evidence
+        Risk              = $Risk
+        Recommendation    = $Recommendation
+        References        = $References
+        CollectedAt       = (Get-Date).ToUniversalTime()
+        Domain            = $Domain
+        Forest            = $Forest
+        DomainController  = $DomainController
+        IsReadOnly        = $true
     }
 }

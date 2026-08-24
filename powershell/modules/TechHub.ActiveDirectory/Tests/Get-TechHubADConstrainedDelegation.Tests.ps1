@@ -1,6 +1,9 @@
-$ModulePath = Join-Path -Path $PSScriptRoot -ChildPath '..'
+﻿#Requires -Version 5.1
 
-function New-TestConstrainedProviderResult {
+Set-StrictMode -Version Latest
+
+
+function global:New-TestConstrainedProviderResult {
     param (
         [string]$Status = 'Available',
         [object[]]$Data = @(),
@@ -20,7 +23,7 @@ function New-TestConstrainedProviderResult {
     }
 }
 
-function New-TestConstrainedProvider {
+function global:New-TestConstrainedProvider {
     param (
         [string]$ObjectStatus = 'Available',
         [object[]]$Objects = @(),
@@ -50,7 +53,23 @@ function New-TestConstrainedProvider {
 }
 
 Describe 'Get-TechHubADConstrainedDelegation provider migration' {
-    BeforeAll { Import-Module -Name $ModulePath -Force -ErrorAction Stop }
+    BeforeAll {
+    $TestFile = $PSCommandPath
+
+    if ([string]::IsNullOrWhiteSpace($TestFile)) {
+        throw 'Unable to determine test file path.'
+    }
+
+    $TestsRoot = Split-Path -Parent $TestFile
+    $ModuleRoot = Split-Path -Parent $TestsRoot
+    $ModulePath = Join-Path -Path $ModuleRoot -ChildPath 'TechHub.ActiveDirectory.psm1'
+
+    if (-not (Test-Path -LiteralPath $ModulePath)) {
+        throw "Module not found: $ModulePath"
+    }
+
+    Import-Module -Name $ModulePath -Force -ErrorAction Stop
+}
     AfterAll { Remove-Module -Name TechHub.ActiveDirectory -Force -ErrorAction SilentlyContinue }
 
     BeforeEach {
@@ -71,11 +90,26 @@ Describe 'Get-TechHubADConstrainedDelegation provider migration' {
     }
 
     It 'distinguishes user and computer accounts' {
-        $Results = @(Get-TechHubADConstrainedDelegation -Provider $Script:Provider)
-        ($Results | Where-Object ObjectType -eq 'User').Count | Should -Be 1
-        ($Results | Where-Object ObjectType -eq 'Computer').Count | Should -Be 1
-    }
 
+        $Results = @(
+            Get-TechHubADConstrainedDelegation -Provider $Script:Provider
+        )
+
+        $UserResults = @(
+            $Results | Where-Object {
+                $_.ObjectType -eq 'User'
+            }
+        )
+
+        $ComputerResults = @(
+            $Results | Where-Object {
+                $_.ObjectType -eq 'Computer'
+            }
+        )
+
+        $UserResults.Count | Should -Be 1
+        $ComputerResults.Count | Should -Be 1
+    }
     It 'handles one and multiple delegation targets' {
         $Script:User.'msDS-AllowedToDelegateTo' = @('HTTP/api.example.test', 'LDAP/dc.example.test')
         $Result = @(Get-TechHubADConstrainedDelegation -Provider (New-TestConstrainedProvider -Objects @($Script:User)))[0]
@@ -168,3 +202,5 @@ Describe 'Get-TechHubADConstrainedDelegation provider migration' {
         foreach ($Marker in $DynamicMarkers) { $Source -match [regex]::Escape($Marker) | Should -BeFalse }
     }
 }
+
+

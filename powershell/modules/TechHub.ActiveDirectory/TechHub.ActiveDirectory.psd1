@@ -6,23 +6,63 @@
     CompanyName       = 'TheUnchecked'
     Description       = 'Read-only Active Directory security assessment functions.'
     PowerShellVersion = '5.1'
-    CompatiblePSEditions = @('Desktop')
 
-    RequiredModules   = @('ActiveDirectory')
+    CompatiblePSEditions = @(
+        'Desktop'
+    )
 
     FunctionsToExport = @(
+        # ------------------------------------------------------------
+        # Active Directory checks
+        # ------------------------------------------------------------
+
+        'Get-TechHubADInventory'
         'Get-TechHubADUnconstrainedDelegation'
         'Get-TechHubADConstrainedDelegation'
         'Get-TechHubADRBCD'
         'Get-TechHubADPrivilegedGroup'
-        'New-TechHubADProvider'
+        'Get-TechHubADServiceAccounts'
+
+        # ------------------------------------------------------------
+        # Remote assessment collectors
+        # ------------------------------------------------------------
+
+        'Get-TechHubADRemoteIISAppPoolAccounts'
+        'Get-TechHubADRemoteLocalGroupMembers'
+        'Get-TechHubADRemoteNetworkShareACLs'
+        'Get-TechHubADRemoteScheduledTaskAccounts'
+        'Get-TechHubADRemoteOSInfo'
+        'Get-TechHubADRemoteWindowsFeatures'
+
+        # ------------------------------------------------------------
+        # Assessment engine
+        # ------------------------------------------------------------
+
         'New-TechHubADAssessmentResult'
         'New-TechHubADCheckRegistry'
         'Invoke-TechHubADAssessment'
+        'Invoke-TechHubADRemoteAssessment'
+
+        # ------------------------------------------------------------
+        # Provider
+        # ------------------------------------------------------------
+
+        'New-TechHubADProvider'
+
+        # ------------------------------------------------------------
+        # Exporters
+        # ------------------------------------------------------------
+
+        'Export-TechHubADAssessmentJson'
+        'Export-TechHubADAssessmentCsv'
+        'Export-TechHubADAssessmentHtml'
     )
-    CmdletsToExport   = @()
+
+    CmdletsToExport = @()
+
     VariablesToExport = @()
-    AliasesToExport   = @()
+
+    AliasesToExport = @()
 
     PrivateData = @{
         PSData = @{
@@ -30,6 +70,7 @@
                 'ActiveDirectory'
                 'Security'
                 'Assessment'
+                'Inventory'
                 'ReadOnly'
                 'PowerShell'
             )

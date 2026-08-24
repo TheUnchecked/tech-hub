@@ -33,14 +33,46 @@ function New-TechHubADAssessmentResult {
     )
 
     $Result = [TechHubADAssessmentResult]::new()
-    if ($AssessmentId -ne [guid]::Empty) { $Result.AssessmentId = $AssessmentId }
-    if ($PSBoundParameters.ContainsKey('StartedAt')) { $Result.StartedAt = $StartedAt.Value.ToUniversalTime() }
-    if ($PSBoundParameters.ContainsKey('CompletedAt')) { $Result.Complete($CompletedAt.Value) }
-    if ($PSBoundParameters.ContainsKey('Domain')) { $Result.Domain = $Domain }
-    if ($PSBoundParameters.ContainsKey('Forest')) { $Result.Forest = $Forest }
-    if ($PSBoundParameters.ContainsKey('DomainController')) { $Result.DomainController = $DomainController }
-    if ($PSBoundParameters.ContainsKey('ResultType')) { $Result.ResultType = $ResultType }
-    if ($PSBoundParameters.ContainsKey('ProviderStatus')) { $Result.SetProviderStatus($ProviderStatus) }
-    if ($PSBoundParameters.ContainsKey('DataAvailability')) { $Result.SetDataAvailability($DataAvailability) }
-    $Result
+
+    if ($PSBoundParameters.ContainsKey('AssessmentId')) {
+        if ($AssessmentId -ne [guid]::Empty) {
+            $Result.AssessmentId = $AssessmentId
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('StartedAt')) {
+        $StartedDateTime = [datetime]$StartedAt
+        $Result.StartedAt = $StartedDateTime.ToUniversalTime()
+    }
+
+    if ($PSBoundParameters.ContainsKey('CompletedAt')) {
+        $CompletedDateTime = [datetime]$CompletedAt
+        $Result.Complete($CompletedDateTime)
+    }
+
+    if ($PSBoundParameters.ContainsKey('Domain')) {
+        $Result.Domain = $Domain
+    }
+
+    if ($PSBoundParameters.ContainsKey('Forest')) {
+        $Result.Forest = $Forest
+    }
+
+    if ($PSBoundParameters.ContainsKey('DomainController')) {
+        $Result.DomainController = $DomainController
+    }
+
+    if ($PSBoundParameters.ContainsKey('ResultType')) {
+        $Result.ResultType = $ResultType
+    }
+
+    if ($PSBoundParameters.ContainsKey('ProviderStatus')) {
+        $Result.SetProviderStatus($ProviderStatus)
+    }
+
+    if ($PSBoundParameters.ContainsKey('DataAvailability')) {
+        $Result.SetDataAvailability($DataAvailability)
+    }
+
+    return $Result
 }
