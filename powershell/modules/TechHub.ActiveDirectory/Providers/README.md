@@ -36,7 +36,9 @@ Every operation returns an object containing:
 - `Server`
 - `IsReadOnly`
 
-`Data` contains normalized objects with nullable properties such as `Name`, `SamAccountName`, `DistinguishedName`, `ObjectGUID`, `ObjectClass`, `ObjectCategory`, `Enabled`, `UserAccountControl`, `AdminCount`, `PasswordNeverExpires`, `ServicePrincipalName`, `MemberOf`, and `SID`.
+`Data` contains normalized objects with nullable properties such as `Name`, `SamAccountName`, `DistinguishedName`, `ObjectGUID`, `ObjectClass`, `ObjectCategory`, `Enabled`, `UserAccountControl`, `AdminCount`, `PasswordNeverExpires`, `ServicePrincipalName`, `MemberOf`, `msDS-AllowedToDelegateTo`, and `SID`.
+
+`msDS-AllowedToDelegateTo` is an optional read-only normalized property for constrained delegation targets. It is `$null` when the source attribute is absent, null, or empty, and is a `[string[]]` when one or more values are present. Values retain the order returned by Active Directory and are not modified by the provider. The provider exposes the property only when it is explicitly requested through `GetADObjects()`.
 
 Domain and forest operations preserve their specific metadata such as `DNSRoot`, `NetBIOSName`, `DomainMode`, `ForestMode`, `RootDomain`, and `Domains`.
 

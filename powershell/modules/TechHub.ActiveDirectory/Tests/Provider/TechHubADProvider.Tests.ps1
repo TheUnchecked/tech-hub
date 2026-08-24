@@ -12,7 +12,7 @@ Describe 'TechHubADProvider' {
     BeforeEach {
         $Script:Domain = [PSCustomObject]@{ DNSRoot = 'example.test'; NetBIOSName = 'EXAMPLE'; DistinguishedName = 'DC=example,DC=test'; DomainMode = 'Windows2016Domain' }
         $Script:Forest = [PSCustomObject]@{ Name = 'example.test'; ForestMode = 'Windows2016Forest'; RootDomain = 'example.test'; Domains = @('example.test') }
-        $Script:Object = [PSCustomObject]@{ Name = 'APP01'; SamAccountName = 'APP01$'; DistinguishedName = 'CN=APP01,DC=example,DC=test'; ObjectGUID = [guid]'11111111-1111-1111-1111-111111111111'; ObjectClass = @('top', 'computer'); ObjectCategory = 'computer'; UserAccountControl = 0; ServicePrincipalName = @('HOST/APP01.example.test'); MemberOf = @('CN=Servers,DC=example,DC=test'); SID = 'S-1-5-21-100-200-300-1101' }
+        $Script:Object = [PSCustomObject]@{ Name = 'APP01'; SamAccountName = 'APP01$'; DistinguishedName = 'CN=APP01,DC=example,DC=test'; ObjectGUID = [guid]'11111111-1111-1111-1111-111111111111'; ObjectClass = @('top', 'computer'); ObjectCategory = 'computer'; UserAccountControl = 0; ServicePrincipalName = @('HOST/APP01.example.test'); MemberOf = @('CN=Servers,DC=example,DC=test'); 'msDS-AllowedToDelegateTo' = @('HTTP/api.example.test'); SID = 'S-1-5-21-100-200-300-1101' }
         $Script:Group = [PSCustomObject]@{ Name = 'Domain Admins'; SamAccountName = 'Domain Admins'; DistinguishedName = 'CN=Domain Admins,CN=Users,DC=example,DC=test'; ObjectGUID = [guid]'22222222-2222-2222-2222-222222222222'; ObjectClass = @('top', 'group') }
         $Script:Member = [PSCustomObject]@{ Name = 'alice'; SamAccountName = 'alice'; DistinguishedName = 'CN=alice,CN=Users,DC=example,DC=test'; ObjectGUID = [guid]'33333333-3333-3333-3333-333333333333'; ObjectClass = @('top', 'person', 'user'); UserAccountControl = 0; SID = 'S-1-5-21-100-200-300-1102' }
         Mock Get-Module -ModuleName TechHub.ActiveDirectory { [PSCustomObject]@{ Name = 'ActiveDirectory' } }
@@ -60,6 +60,68 @@ Describe 'TechHubADProvider' {
         $Object.ObjectGUID | Should -Be ([guid]'11111111-1111-1111-1111-111111111111')
         $Object.Enabled | Should -BeTrue
         $Object.ServicePrincipalName | Should -Contain 'HOST/APP01.example.test'
+    }
+
+    It 'preserves one constrained delegation target as a string array' {
+        $Provider = New-TechHubADProvider
+        $Result = $Provider.GetADObjects('(objectClass=computer)', $null, @('Name', 'msDS-AllowedToDelegateTo'))
+        $Object = $Result.Data[0]
+
+        $Object.'msDS-AllowedToDelegateTo'.GetType().FullName | Should -Be 'System.String[]'
+        $Object.'msDS-AllowedToDelegateTo'.Count | Should -Be 1
+        $Object.'msDS-AllowedToDelegateTo'[0] | Should -Be 'HTTP/api.example.test'
+        $Object.Name | Should -Be 'APP01'
+        $Object.ObjectGUID | Should -Be ([guid]'11111111-1111-1111-1111-111111111111')
+    }
+
+    It 'preserves multiple delegation targets in source order' {
+        Mock Get-ADObject -ModuleName TechHub.ActiveDirectory {
+            [PSCustomObject]@{
+                Name = 'APP01'
+                'msDS-AllowedToDelegateTo' = @('HTTP/first.example.test', 'LDAP/second.example.test')
+                ServicePrincipalName = @('HOST/APP01.example.test')
+            }
+        }
+        $Object = (New-TechHubADProvider).GetADObjects('(objectClass=computer)', $null, @('msDS-AllowedToDelegateTo')).Data[0]
+
+        $Object.'msDS-AllowedToDelegateTo'.Count | Should -Be 2
+        $Object.'msDS-AllowedToDelegateTo'[0] | Should -Be 'HTTP/first.example.test'
+        $Object.'msDS-AllowedToDelegateTo'[1] | Should -Be 'LDAP/second.example.test'
+    }
+
+    It 'normalizes a scalar delegation target to a string array' {
+        Mock Get-ADObject -ModuleName TechHub.ActiveDirectory {
+            [PSCustomObject]@{ Name = 'SCALAR'; 'msDS-AllowedToDelegateTo' = 'HTTP/single.example.test' }
+        }
+        $Object = (New-TechHubADProvider).GetADObjects('(objectClass=computer)', $null, @('msDS-AllowedToDelegateTo')).Data[0]
+
+        $Object.'msDS-AllowedToDelegateTo'.GetType().FullName | Should -Be 'System.String[]'
+        $Object.'msDS-AllowedToDelegateTo'[0] | Should -Be 'HTTP/single.example.test'
+    }
+
+    It 'returns null when the delegation attribute is absent, null, or empty' {
+        foreach ($SourceObject in @(
+            [PSCustomObject]@{ Name = 'ABSENT' }
+            [PSCustomObject]@{ Name = 'NULL'; 'msDS-AllowedToDelegateTo' = $null }
+            [PSCustomObject]@{ Name = 'EMPTY'; 'msDS-AllowedToDelegateTo' = @() }
+        )) {
+            Mock Get-ADObject -ModuleName TechHub.ActiveDirectory { $SourceObject }
+            $Object = (New-TechHubADProvider).GetADObjects('(objectClass=computer)', $null, @('msDS-AllowedToDelegateTo')).Data[0]
+            $Object.PSObject.Properties.Name | Should -Contain 'msDS-AllowedToDelegateTo'
+            $Object.'msDS-AllowedToDelegateTo' | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'passes requested properties through to Get-ADObject' {
+        $RequestedProperties = @('Name', 'msDS-AllowedToDelegateTo')
+        $Provider = New-TechHubADProvider
+        $Provider.GetADObjects('(objectClass=computer)', 'DC=example,DC=test', $RequestedProperties) | Out-Null
+
+        Assert-MockCalled Get-ADObject -ModuleName TechHub.ActiveDirectory -ParameterFilter {
+            $Properties -contains 'msDS-AllowedToDelegateTo' -and
+            $Properties -contains 'Name' -and
+            $SearchBase -eq 'DC=example,DC=test'
+        } -Times 1
     }
 
     It 'retrieves groups and group members' {

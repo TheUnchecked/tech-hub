@@ -6,7 +6,7 @@ Read-only Active Directory security assessment functions for Windows PowerShell 
 
 The module detects accounts configured with unconstrained Kerberos delegation through the `TRUSTED_FOR_DELEGATION` userAccountControl flag (`0x80000`), constrained delegation through `msDS-AllowedToDelegateTo`, and resource-based constrained delegation (RBCD) through `msDS-AllowedToActOnBehalfOfOtherIdentity`. It distinguishes account types, reports enabled or disabled state, and includes available service principal names.
 
-`Get-TechHubADUnconstrainedDelegation` consumes normalized data from `TechHubADProvider`. The provider performs AD collection and status/error handling; the check performs detection, classification, severity, evidence, and finding creation. The other checks have not yet been migrated.
+`Get-TechHubADUnconstrainedDelegation` and `Get-TechHubADConstrainedDelegation` consume normalized data from `TechHubADProvider`. The provider performs AD collection and status/error handling; each check performs detection, classification, severity, evidence, and finding creation. The remaining checks have not yet been migrated.
 
 This module is an assessment tool only. It does not perform exploitation, credential dumping, lateral movement, persistence, ticket forging, bypass, evasion, or configuration changes.
 
@@ -32,6 +32,8 @@ Get-TechHubADUnconstrainedDelegation -Verbose
 ```
 
 The check creates a default `TechHubADProvider` using `-Server` when no `-Provider` is supplied. A provider can also be supplied directly for composition and testing. `-SearchBase` is passed to the provider's `GetADObjects()` operation.
+
+`Get-TechHubADConstrainedDelegation` follows the same provider-backed flow. It requests `msDS-AllowedToDelegateTo` and the other required normalized properties through `GetADObjects()`, then interprets delegation targets and creates Finding Contract v1 objects. Its unit tests use synthetic provider responses and do not mock Active Directory cmdlets.
 
 ```powershell
 Get-TechHubADConstrainedDelegation -Verbose
@@ -113,7 +115,7 @@ Severity is deterministic and review-oriented. Approved or excluded members are 
 
 ## Error handling
 
-Empty results are a valid assessment outcome and produce no success-pipeline objects. Provider status `Partial` is preserved in finding evidence when usable data is available. Provider `NotAvailable` and `Error` states produce a structured contract result with the provider error details instead of an empty successful result. Provider and check diagnostics are available through `-Verbose`; provider failures can be controlled by the caller's `-ErrorAction` context.
+Empty results are a valid assessment outcome and produce no success-pipeline objects. For provider-backed checks, provider status `Partial` is preserved in finding evidence when usable data is available. Provider `NotAvailable` and `Error` states produce a structured contract result with provider error details instead of an empty successful result. Provider and check diagnostics are available through `-Verbose`; provider failures can be controlled by the caller's `-ErrorAction` context.
 
 ## Testing
 

@@ -18,6 +18,7 @@ function ConvertTo-TechHubADProviderObject {
         PasswordNeverExpires = $null
         ServicePrincipalName = @()
         MemberOf            = @()
+        'msDS-AllowedToDelegateTo' = $null
         SID                 = $null
     }
 
@@ -37,6 +38,12 @@ function ConvertTo-TechHubADProviderObject {
             'PasswordNeverExpires' { $Values[$PropertyName] = [bool]$Property.Value }
             'ServicePrincipalName' { $Values[$PropertyName] = @($Property.Value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) }
             'MemberOf' { $Values[$PropertyName] = @($Property.Value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) }
+            'msDS-AllowedToDelegateTo' {
+                $DelegationTargets = @($Property.Value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                if ($DelegationTargets.Count -gt 0) {
+                    $Values[$PropertyName] = [string[]]$DelegationTargets
+                }
+            }
             default { $Values[$PropertyName] = [string]$Property.Value }
         }
     }
@@ -61,6 +68,7 @@ function ConvertTo-TechHubADProviderObject {
         PasswordNeverExpires = $Values.PasswordNeverExpires
         ServicePrincipalName = $Values.ServicePrincipalName
         MemberOf             = $Values.MemberOf
+        'msDS-AllowedToDelegateTo' = $Values.'msDS-AllowedToDelegateTo'
         SID                  = $Values.SID
     }
 }
