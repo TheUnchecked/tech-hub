@@ -119,15 +119,6 @@ class TechHubADProvider {
     }
 
     # ========================================================
-    # INTERNAL - MODULE CHECK
-    # ========================================================
-
-    hidden [bool] IsActiveDirectoryAvailable() {
-
-        return Test-TechHubADActiveDirectoryAvailability
-    }
-
-    # ========================================================
     # INTERNAL - UNAVAILABLE RESULT
     # ========================================================
 
@@ -165,101 +156,6 @@ class TechHubADProvider {
     }
 
     # ========================================================
-    # INTERNAL - NORMALIZE AD OBJECT
-    # ========================================================
-
-    hidden [object] NormalizeADObject(
-        [object] $Source
-    ) {
-
-        $Result = [ordered]@{}
-
-        $KnownProperties = @(
-            'Name'
-            'SamAccountName'
-            'DistinguishedName'
-            'ObjectGUID'
-            'ObjectClass'
-            'ObjectCategory'
-            'UserAccountControl'
-            'ServicePrincipalName'
-            'MemberOf'
-            'msDS-AllowedToDelegateTo'
-            'SID'
-        )
-
-        foreach ($PropertyName in $KnownProperties) {
-
-            $Property = `
-                $Source.PSObject.Properties[$PropertyName]
-
-            if ($null -eq $Property) {
-
-                if ($PropertyName -eq 'msDS-AllowedToDelegateTo') {
-                    $Result[$PropertyName] = $null
-                }
-                else {
-                    $Result[$PropertyName] = $null
-                }
-
-                continue
-            }
-
-            $Value = $Property.Value
-
-            if ($PropertyName -eq 'msDS-AllowedToDelegateTo') {
-
-                if ($null -eq $Value) {
-
-                    $Result[$PropertyName] = $null
-
-                    continue
-                }
-
-                $Values = @($Value)
-
-                if ($Values.Count -eq 0) {
-
-                    $Result[$PropertyName] = $null
-
-                    continue
-                }
-
-                $StringValues = @(
-                    foreach ($Item in $Values) {
-                        [string]$Item
-                    }
-                )
-
-                $Result[$PropertyName] = `
-                    [string[]]$StringValues
-
-                continue
-            }
-
-            if (
-                $PropertyName -eq 'ServicePrincipalName' -or
-                $PropertyName -eq 'MemberOf' -or
-                $PropertyName -eq 'ObjectClass'
-            ) {
-
-                if ($null -eq $Value) {
-                    $Result[$PropertyName] = @()
-                }
-                else {
-                    $Result[$PropertyName] = @($Value)
-                }
-
-                continue
-            }
-
-            $Result[$PropertyName] = $Value
-        }
-
-        return [PSCustomObject]$Result
-    }
-
-    # ========================================================
     # DOMAIN INFORMATION
     # ========================================================
 
@@ -267,37 +163,14 @@ class TechHubADProvider {
 
         $Operation = 'GetDomainInformation'
 
-        if (-not $this.IsActiveDirectoryAvailable()) {
+        $ReadResult = Get-TechHubADProviderDomainInformation -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
-
-        try {
-
-            $Parameters = @{
-                ErrorAction = 'Stop'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($this.Server)) {
-                $Parameters.Server = $this.Server
-            }
-
-            $Domain = Get-ADDomain @Parameters
-
-            return $this.NewResult(
-                $Operation,
-                'Available',
-                @($Domain),
-                $null,
-                $null
-            )
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
         }
-        catch {
-
-            return $this.NewErrorResult(
-                $Operation,
-                $_.Exception
-            )
-        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
     }
 
     # ========================================================
@@ -308,37 +181,14 @@ class TechHubADProvider {
 
         $Operation = 'GetForestInformation'
 
-        if (-not $this.IsActiveDirectoryAvailable()) {
+        $ReadResult = Get-TechHubADProviderForestInformation -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
-
-        try {
-
-            $Parameters = @{
-                ErrorAction = 'Stop'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($this.Server)) {
-                $Parameters.Server = $this.Server
-            }
-
-            $Forest = Get-ADForest @Parameters
-
-            return $this.NewResult(
-                $Operation,
-                'Available',
-                @($Forest),
-                $null,
-                $null
-            )
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
         }
-        catch {
-
-            return $this.NewErrorResult(
-                $Operation,
-                $_.Exception
-            )
-        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
     }
 
     # ========================================================
@@ -349,40 +199,14 @@ class TechHubADProvider {
 
         $Operation = 'GetDomainControllers'
 
-        if (-not $this.IsActiveDirectoryAvailable()) {
+        $ReadResult = Get-TechHubADProviderDomainControllers -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
-
-        try {
-
-            $Parameters = @{
-                Filter      = '*'
-                ErrorAction = 'Stop'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($this.Server)) {
-                $Parameters.Server = $this.Server
-            }
-
-            $Controllers = @(
-                Get-ADDomainController @Parameters
-            )
-
-            return $this.NewResult(
-                $Operation,
-                'Available',
-                $Controllers,
-                $null,
-                $null
-            )
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
         }
-        catch {
-
-            return $this.NewErrorResult(
-                $Operation,
-                $_.Exception
-            )
-        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
     }
 
     # ========================================================
@@ -397,51 +221,14 @@ class TechHubADProvider {
 
         $Operation = 'GetADObjects'
 
-        if (-not $this.IsActiveDirectoryAvailable()) {
+        $ReadResult = Get-TechHubADProviderObjects -LDAPFilter $LDAPFilter -SearchBase $SearchBase -Properties $Properties -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
-
-        try {
-
-            $Parameters = @{
-                LDAPFilter  = $LDAPFilter
-                Properties  = $Properties
-                ErrorAction = 'Stop'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($SearchBase)) {
-                $Parameters.SearchBase = $SearchBase
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($this.Server)) {
-                $Parameters.Server = $this.Server
-            }
-
-            $Objects = @(
-                Get-ADObject @Parameters
-            )
-
-            $NormalizedObjects = @(
-                foreach ($Object in $Objects) {
-                    $this.NormalizeADObject($Object)
-                }
-            )
-
-            return $this.NewResult(
-                $Operation,
-                'Available',
-                $NormalizedObjects,
-                $null,
-                $null
-            )
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
         }
-        catch {
-
-            return $this.NewErrorResult(
-                $Operation,
-                $_.Exception
-            )
-        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
     }
 
     # ========================================================
@@ -455,50 +242,14 @@ class TechHubADProvider {
 
         $Operation = 'GetGroups'
 
-        if (-not $this.IsActiveDirectoryAvailable()) {
+        $ReadResult = Get-TechHubADProviderGroups -Filter $Filter -SearchBase $SearchBase -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
-
-        try {
-
-            $Parameters = @{
-                ErrorAction = 'Stop'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($Filter)) {
-                $Parameters.Filter = $Filter
-            }
-            else {
-                $Parameters.Filter = '*'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($SearchBase)) {
-                $Parameters.SearchBase = $SearchBase
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($this.Server)) {
-                $Parameters.Server = $this.Server
-            }
-
-            $Groups = @(
-                Get-ADGroup @Parameters
-            )
-
-            return $this.NewResult(
-                $Operation,
-                'Available',
-                $Groups,
-                $null,
-                $null
-            )
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
         }
-        catch {
-
-            return $this.NewErrorResult(
-                $Operation,
-                $_.Exception
-            )
-        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
     }
 
     # ========================================================
@@ -511,40 +262,14 @@ class TechHubADProvider {
 
         $Operation = 'GetGroupMembers'
 
-        if (-not $this.IsActiveDirectoryAvailable()) {
+        $ReadResult = Get-TechHubADProviderGroupMembers -Identity $Identity -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
-
-        try {
-
-            $Parameters = @{
-                Identity    = $Identity
-                ErrorAction = 'Stop'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($this.Server)) {
-                $Parameters.Server = $this.Server
-            }
-
-            $Members = @(
-                Get-ADGroupMember @Parameters
-            )
-
-            return $this.NewResult(
-                $Operation,
-                'Available',
-                $Members,
-                $null,
-                $null
-            )
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
         }
-        catch {
-
-            return $this.NewErrorResult(
-                $Operation,
-                $_.Exception
-            )
-        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
     }
 
     # ========================================================
@@ -555,7 +280,7 @@ class TechHubADProvider {
 
         if ($this.OperationResults.Count -eq 0) {
 
-            if (-not $this.IsActiveDirectoryAvailable()) {
+            if (-not (Test-TechHubADProviderReadAvailability)) {
 
                 return [PSCustomObject]@{
                     Provider     = 'TechHubADProvider'
