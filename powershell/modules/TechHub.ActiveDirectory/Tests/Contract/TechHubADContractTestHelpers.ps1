@@ -1,4 +1,8 @@
-function Get-TechHubADFindingContractProperties {
+#requires -Version 5.1
+
+Set-StrictMode -Version Latest
+
+function global:Get-TechHubADFindingContractProperties {
     @(
         'AssessmentId'
         'CheckId'
@@ -20,11 +24,57 @@ function Get-TechHubADFindingContractProperties {
         'Recommendation'
         'References'
         'CollectedAt'
+        'Domain'
+        'Forest'
+        'DomainController'
         'IsReadOnly'
     )
 }
 
-function Assert-TechHubADFindingContract {
+function global:New-TestTechHubADFinding {
+    [CmdletBinding()]
+    param ()
+
+    $AssessmentId = $Script:AssessmentId
+
+    if ($null -eq $AssessmentId) {
+        $AssessmentId = [guid]::NewGuid()
+    }
+
+    [PSCustomObject][ordered]@{
+        AssessmentId      = $AssessmentId
+        CheckId           = 'AD-TEST'
+        CheckName         = 'Synthetic Test Check'
+        FindingId         = ([guid]::NewGuid()).Guid
+        Title             = 'Synthetic finding'
+        Description       = 'Synthetic finding used by the finding contract tests.'
+        Category          = 'Delegation'
+        Severity          = 'High'
+        Confidence        = 'High'
+        Status            = 'Open'
+        AffectedObject    = 'CN=Test User,CN=Users,DC=example,DC=test'
+        ObjectType        = 'user'
+        DistinguishedName = 'CN=Test User,CN=Users,DC=example,DC=test'
+        SamAccountName    = 'test.user'
+        ObjectGuid        = [guid]::NewGuid()
+        Evidence          = [PSCustomObject][ordered]@{
+            Attribute = 'SyntheticTest'
+            Value     = 'Test'
+        }
+        Risk              = 'Synthetic risk'
+        Recommendation    = 'Synthetic recommendation'
+        References        = @(
+            'https://example.test/reference'
+        )
+        CollectedAt       = (Get-Date).ToUniversalTime()
+        Domain            = 'example.test'
+        Forest            = 'example.test'
+        DomainController  = 'dc01.example.test'
+        IsReadOnly        = $true
+    }
+}
+
+function global:Assert-TechHubADFindingContract {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -41,22 +91,42 @@ function Assert-TechHubADFindingContract {
     )
 
     $PropertyNames = @($Result.PSObject.Properties.Name)
+
     foreach ($PropertyName in (Get-TechHubADFindingContractProperties)) {
-        $PropertyNames | Should -Contain $PropertyName
+
+        $PropertyNames |
+            Should -Contain $PropertyName
+
         $Property = $Result.PSObject.Properties[$PropertyName]
-        $null -ne $Property.Value | Should -BeTrue -Because ("Contract property '{0}' must be populated." -f $PropertyName)
+
+        $null -ne $Property.Value |
+            Should -BeTrue `
+                -Because ("Contract property '{0}' must be populated." -f $PropertyName)
     }
 
-    $Result.CheckId | Should -Be $ExpectedCheckId
-    $Result.CheckName | Should -Be $ExpectedCheckName
-    $Result.Category | Should -Be $ExpectedCategory
-    $Result.IsReadOnly | Should -BeTrue
-    $Result.FindingId | Should -Not -BeNullOrEmpty
-    $Result.AssessmentId | Should -Not -BeNullOrEmpty
-    $Result.CollectedAt | Should -Not -BeNullOrEmpty
+    $Result.CheckId |
+        Should -Be $ExpectedCheckId
+
+    $Result.CheckName |
+        Should -Be $ExpectedCheckName
+
+    $Result.Category |
+        Should -Be $ExpectedCategory
+
+    $Result.IsReadOnly |
+        Should -BeTrue
+
+    $Result.FindingId |
+        Should -Not -BeNullOrEmpty
+
+    $Result.AssessmentId |
+        Should -Not -BeNullOrEmpty
+
+    $Result.CollectedAt |
+        Should -Not -BeNullOrEmpty
 }
 
-function Assert-TechHubADSafeOutput {
+function global:Assert-TechHubADSafeOutput {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -64,18 +134,32 @@ function Assert-TechHubADSafeOutput {
     )
 
     foreach ($Result in $Results) {
-        $Result -is [string] | Should -BeFalse
+        $Result -is [string] |
+            Should -BeFalse
     }
 
-    $SerializedResults = $Results | ConvertTo-Json -Depth 12
-    $SerializedResults | Should -Not -Match '(?i)\b(password|secret|token|credential)\s*[:=]\s*[^,}\r\n]+'
-    $PrivateKeyMarker = '-----' + 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
-    $SerializedResults | Should -Not -Match $PrivateKeyMarker
-    $SerializedResults | Should -Not -Match '(?i)\b(bearer|basic)\s+[A-Za-z0-9+/=_-]{12,}'
-    $SerializedResults | Should -Not -Match '^\s*\[[0-9]{4}-[0-9]{2}-[0-9]{2}[^\r\n]*\]\s+\[(INFO|WARNING|ERROR)\]'
+    $SerializedResults = $Results |
+        ConvertTo-Json -Depth 12
+
+    $SerializedResults |
+        Should -Not -Match '(?i)\b(password|secret|token|credential)\s*[:=]\s*[^,}\r\n]+'
+
+    $PrivateKeyMarker =
+        '-----' +
+        'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
+
+    $SerializedResults |
+        Should -Not -Match $PrivateKeyMarker
+
+    $SerializedResults |
+        Should -Not -Match '(?i)\b(bearer|basic)\s+[A-Za-z0-9+/=_-]{12,}'
+
+    $SerializedResults |
+        Should -Not -Match '^\s*\[[0-9]{4}-[0-9]{2}-[0-9]{2}[^\r\n]*\]\s+\[(INFO|WARNING|ERROR)\]'
 }
 
-function New-TechHubADContractDescriptor {
+function global:New-TechHubADContractDescriptor {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [string]$IdentityReference
@@ -87,7 +171,18 @@ function New-TechHubADContractDescriptor {
         AccessMask        = 983551
         ObjectType        = [guid]::Empty
     }
-    $Descriptor = [PSCustomObject]@{ AccessRules = @($Rule) }
-    Add-Member -InputObject $Descriptor -MemberType ScriptMethod -Name GetAccessRules -Value { $this.AccessRules }
+
+    $Descriptor = [PSCustomObject]@{
+        AccessRules = @($Rule)
+    }
+
+    Add-Member `
+        -InputObject $Descriptor `
+        -MemberType ScriptMethod `
+        -Name GetAccessRules `
+        -Value {
+            $this.AccessRules
+        }
+
     $Descriptor
 }

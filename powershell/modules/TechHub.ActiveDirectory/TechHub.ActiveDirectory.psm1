@@ -2,36 +2,95 @@
 
 Set-StrictMode -Version Latest
 
+# ============================================================
+# TECHHUB.ACTIVEDIRECTORY MODULE LOADER
+# ============================================================
+
+$ModuleRoot = $PSScriptRoot
+
+# ============================================================
+# 1. CLASSES
+# ============================================================
+
 $ClassFiles = @(
-    Get-ChildItem -Path "$PSScriptRoot/Classes/*.ps1" -File -ErrorAction SilentlyContinue
+    Get-ChildItem `
+        -LiteralPath (Join-Path $ModuleRoot 'Classes') `
+        -Filter '*.ps1' `
+        -File `
+        -ErrorAction SilentlyContinue |
+        Sort-Object Name
 )
 
 foreach ($ClassFile in $ClassFiles) {
+
     . $ClassFile.FullName
 }
 
+# ============================================================
+# 2. PRIVATE FUNCTIONS
+# ============================================================
+
+$PrivatePath = Join-Path $ModuleRoot 'Private'
+
+$PrivateFunctions = @(
+    Get-ChildItem `
+        -LiteralPath $PrivatePath `
+        -Filter '*.ps1' `
+        -File `
+        -ErrorAction SilentlyContinue |
+        Sort-Object Name
+)
+
+foreach ($PrivateFunction in $PrivateFunctions) {
+
+    . $PrivateFunction.FullName
+}
+
+# ============================================================
+# 3. PROVIDERS
+# ============================================================
+
+$ProviderPath = Join-Path `
+    $ModuleRoot `
+    'Providers\ActiveDirectory'
+
 $ProviderFiles = @(
-    Get-ChildItem -Path "$PSScriptRoot/Providers/ActiveDirectory/*.ps1" -File -ErrorAction SilentlyContinue
+    Get-ChildItem `
+        -LiteralPath $ProviderPath `
+        -Filter '*.ps1' `
+        -File `
+        -ErrorAction SilentlyContinue |
+        Sort-Object Name
 )
 
 foreach ($ProviderFile in $ProviderFiles) {
+
     . $ProviderFile.FullName
 }
 
-$PrivateFunctions = @(
-    Get-ChildItem -Path "$PSScriptRoot/Private/*.ps1" -File -ErrorAction SilentlyContinue
-)
+# ============================================================
+# 4. PUBLIC FUNCTIONS
+# ============================================================
 
-foreach ($Function in $PrivateFunctions) {
-    . $Function.FullName
-}
+$PublicPath = Join-Path $ModuleRoot 'Public'
 
 $PublicFunctions = @(
-    Get-ChildItem -Path "$PSScriptRoot/Public/*.ps1" -File -ErrorAction SilentlyContinue
+    Get-ChildItem `
+        -LiteralPath $PublicPath `
+        -Filter '*.ps1' `
+        -File `
+        -ErrorAction SilentlyContinue |
+        Sort-Object Name
 )
 
-foreach ($Function in $PublicFunctions) {
-    . $Function.FullName
+foreach ($PublicFunction in $PublicFunctions) {
+
+    . $PublicFunction.FullName
 }
 
-Export-ModuleMember -Function $PublicFunctions.BaseName
+# ============================================================
+# 5. EXPORT PUBLIC FUNCTIONS ONLY
+# ============================================================
+
+Export-ModuleMember `
+    -Function $PublicFunctions.BaseName

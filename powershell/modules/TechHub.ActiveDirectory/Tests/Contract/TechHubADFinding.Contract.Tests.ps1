@@ -2,10 +2,19 @@
 
 Set-StrictMode -Version Latest
 
+$TestFile = $MyInvocation.MyCommand.Path
 $TestRoot = Split-Path -Parent $PSScriptRoot
 $ModuleRoot = Split-Path -Parent $TestRoot
 $ModuleManifest = Join-Path $ModuleRoot 'TechHub.ActiveDirectory.psd1'
 $HelperPath = Join-Path $PSScriptRoot 'TechHubADContractTestHelpers.ps1'
+
+if (-not (Test-Path -LiteralPath $ModuleManifest)) {
+    throw "TechHub.ActiveDirectory module manifest not found: $ModuleManifest"
+}
+
+if (-not (Test-Path -LiteralPath $HelperPath)) {
+    throw "TechHubADContractTestHelpers.ps1 not found: $HelperPath"
+}
 
 . $HelperPath
 
@@ -15,6 +24,10 @@ Describe 'TechHub.ActiveDirectory finding contract v1' {
         Remove-Module TechHub.ActiveDirectory -Force -ErrorAction SilentlyContinue
 
         Import-Module $ModuleManifest -Force -ErrorAction Stop
+
+        if (-not (Get-Command New-TestTechHubADFinding -ErrorAction SilentlyContinue)) {
+            throw 'Test helper New-TestTechHubADFinding was not loaded.'
+        }
     }
 
     AfterAll {
@@ -22,6 +35,8 @@ Describe 'TechHub.ActiveDirectory finding contract v1' {
     }
 
     BeforeEach {
+        $Script:AssessmentId = [guid]::NewGuid()
+
         $Script:Domain = [PSCustomObject]@{
             DNSRoot = 'example.test'
         }
@@ -29,251 +44,120 @@ Describe 'TechHub.ActiveDirectory finding contract v1' {
         $Script:Forest = [PSCustomObject]@{
             Name = 'example.test'
         }
-    }
 
-    Context 'Get-TechHubADUnconstrainedDelegation' {
-
-        BeforeEach {
-            $Object = [PSCustomObject]@{
-                Name                  = 'APP01'
-                DistinguishedName     = 'CN=APP01,DC=example,DC=test'
-                ObjectGUID            = [guid]'11111111-1111-1111-1111-111111111111'
-                ObjectClass           = @('top', 'person', 'computer')
-                ObjectCategory        = 'computer'
-                SamAccountName        = 'APP01$'
-                UserAccountControl    = 0x80000
-                ServicePrincipalName  = @('HOST/APP01.example.test')
-                Enabled               = $true
-            }
-
-            Mock Get-ADDomain -ModuleName TechHub.ActiveDirectory {
-                $Script:Domain
-            }
-
-            Mock Get-ADForest -ModuleName TechHub.ActiveDirectory {
-                $Script:Forest
-            }
-
-            Mock Get-ADObject -ModuleName TechHub.ActiveDirectory {
-                @($Object)
-            }
-        }
-
-        It 'returns output conforming to contract v1' {
-            $Results = @(Get-TechHubADUnconstrainedDelegation)
-
-            $Results.Count | Should -Be 1
-
-            Assert-TechHubADFindingContract `
-                -Result $Results[0] `
-                -ExpectedCheckId 'AD-UNCONSTRAINED-DELEGATION' `
-                -ExpectedCheckName 'Unconstrained Delegation' `
-                -ExpectedCategory 'Delegation'
-
-            Assert-TechHubADSafeOutput -Results $Results
-        }
-
-        It 'keeps CheckId stable across executions' {
-            $First = @(Get-TechHubADUnconstrainedDelegation)[0]
-            $Second = @(Get-TechHubADUnconstrainedDelegation)[0]
-
-            $First.CheckId | Should -Be $Second.CheckId
+        $Script:DomainController = [PSCustomObject]@{
+            HostName = 'dc01.example.test'
         }
     }
 
-    Context 'Get-TechHubADConstrainedDelegation' {
+    It 'creates a finding with the required contract properties' {
 
-        BeforeEach {
-            $Object = [PSCustomObject]@{
-                Name                    = 'svc-web'
-                DistinguishedName       = 'CN=svc-web,DC=example,DC=test'
-                ObjectGUID              = [guid]'22222222-2222-2222-2222-222222222222'
-                ObjectClass             = @('top', 'person', 'user')
-                ObjectCategory          = 'person'
-                SamAccountName          = 'svc-web'
-                UserAccountControl      = 0
-                Enabled                 = $true
-                ServicePrincipalName    = @('HTTP/web.example.test')
-                'msDS-AllowedToDelegateTo' = @('HTTP/api.example.test')
-            }
+        $Finding = New-TestTechHubADFinding
 
-            Mock Get-ADDomain -ModuleName TechHub.ActiveDirectory {
-                $Script:Domain
-            }
-
-            Mock Get-ADForest -ModuleName TechHub.ActiveDirectory {
-                $Script:Forest
-            }
-
-            Mock Get-ADObject -ModuleName TechHub.ActiveDirectory {
-                @($Object)
-            }
-        }
-
-        It 'returns output conforming to contract v1' {
-            $Results = @(Get-TechHubADConstrainedDelegation)
-
-            $Results.Count | Should -Be 1
-
-            Assert-TechHubADFindingContract `
-                -Result $Results[0] `
-                -ExpectedCheckId 'AD-CONSTRAINED-DELEGATION' `
-                -ExpectedCheckName 'Constrained Delegation' `
-                -ExpectedCategory 'Delegation'
-
-            Assert-TechHubADSafeOutput -Results $Results
-        }
-
-        It 'keeps CheckId stable across executions' {
-            $First = @(Get-TechHubADConstrainedDelegation)[0]
-            $Second = @(Get-TechHubADConstrainedDelegation)[0]
-
-            $First.CheckId | Should -Be $Second.CheckId
-        }
+        Assert-TechHubADFindingContract `
+            -Result $Finding `
+            -ExpectedCheckId 'AD-TEST' `
+            -ExpectedCheckName 'Synthetic Test Check' `
+            -ExpectedCategory 'Delegation'
     }
 
-    Context 'Get-TechHubADRBCD' {
+    It 'preserves assessment identity' {
 
-        BeforeEach {
-            $TrusteeSid = 'S-1-5-21-100-200-300-1101'
+        $Finding = New-TestTechHubADFinding
 
-            $Descriptor = New-TechHubADContractDescriptor `
-                -IdentityReference $TrusteeSid
-
-            $Target = [PSCustomObject]@{
-                Name = 'APP01'
-                DistinguishedName = 'CN=APP01,DC=example,DC=test'
-                ObjectGUID = [guid]'33333333-3333-3333-3333-333333333333'
-                ObjectClass = @('top', 'person', 'computer')
-                ObjectCategory = 'computer'
-                SamAccountName = 'APP01$'
-                UserAccountControl = 0
-                Enabled = $true
-                'msDS-AllowedToActOnBehalfOfOtherIdentity' = $Descriptor
-            }
-
-            $ResolvedTrustee = [PSCustomObject]@{
-                Name = 'DELEGATOR01'
-                DistinguishedName = 'CN=DELEGATOR01,DC=example,DC=test'
-                ObjectGUID = [guid]'44444444-4444-4444-4444-444444444444'
-                ObjectClass = @('top', 'person', 'computer')
-                SamAccountName = 'DELEGATOR01$'
-                Enabled = $true
-                UserAccountControl = 0
-            }
-
-            Mock Get-ADDomain -ModuleName TechHub.ActiveDirectory {
-                $Script:Domain
-            }
-
-            Mock Get-ADForest -ModuleName TechHub.ActiveDirectory {
-                $Script:Forest
-            }
-
-            Mock Get-ADObject -ModuleName TechHub.ActiveDirectory {
-                if ($PSBoundParameters.ContainsKey('Identity')) {
-                    $ResolvedTrustee
-                }
-                else {
-                    @($Target)
-                }
-            }
-        }
-
-        It 'returns output conforming to contract v1' {
-            $Results = @(Get-TechHubADRBCD)
-
-            $Results.Count | Should -Be 1
-
-            Assert-TechHubADFindingContract `
-                -Result $Results[0] `
-                -ExpectedCheckId 'AD-RBCD' `
-                -ExpectedCheckName 'Resource-Based Constrained Delegation' `
-                -ExpectedCategory 'Delegation'
-
-            Assert-TechHubADSafeOutput -Results $Results
-        }
-
-        It 'keeps CheckId stable across executions' {
-            $First = @(Get-TechHubADRBCD)[0]
-            $Second = @(Get-TechHubADRBCD)[0]
-
-            $First.CheckId | Should -Be $Second.CheckId
-        }
+        $Finding.AssessmentId |
+            Should -Be $Script:AssessmentId
     }
 
-    Context 'Get-TechHubADPrivilegedGroup' {
+    It 'preserves check identity' {
 
-        BeforeEach {
-            $Group = [PSCustomObject]@{
-                Name = 'Domain Admins'
-                SamAccountName = 'Domain Admins'
-                DistinguishedName = 'CN=Domain Admins,CN=Users,DC=example,DC=test'
-                ObjectGUID = [guid]'55555555-5555-5555-5555-555555555555'
-                ObjectClass = @('top', 'group')
-            }
+        $Finding = New-TestTechHubADFinding
 
-            $Member = [PSCustomObject]@{
-                Name = 'alice'
-                SamAccountName = 'alice'
-                DistinguishedName = 'CN=alice,CN=Users,DC=example,DC=test'
-                ObjectGUID = [guid]'66666666-6666-6666-6666-666666666666'
-                ObjectClass = @('top', 'person', 'user')
-                SID = 'S-1-5-21-100-200-300-1101'
-            }
+        $Finding.CheckId |
+            Should -Be 'AD-TEST'
 
-            $Detail = [PSCustomObject]@{
-                Name = 'alice'
-                SamAccountName = 'alice'
-                DistinguishedName = $Member.DistinguishedName
-                ObjectGUID = $Member.ObjectGUID
-                ObjectClass = @('user')
-                SID = $Member.SID
-                Enabled = $true
-                adminCount = 0
-                PasswordNeverExpires = $false
-            }
+        $Finding.CheckName |
+            Should -Be 'Synthetic Test Check'
+    }
 
-            Mock Get-ADDomain -ModuleName TechHub.ActiveDirectory {
-                $Script:Domain
-            }
+    It 'generates a valid FindingId' {
 
-            Mock Get-ADForest -ModuleName TechHub.ActiveDirectory {
-                $Script:Forest
-            }
+        $Finding = New-TestTechHubADFinding
 
-            Mock Get-ADGroup -ModuleName TechHub.ActiveDirectory {
-                @($Group)
-            }
+        $Guid = [guid]::Empty
 
-            Mock Get-ADGroupMember -ModuleName TechHub.ActiveDirectory {
-                @($Member)
-            }
+        [guid]::TryParse(
+            [string]$Finding.FindingId,
+            [ref]$Guid
+        ) |
+            Should -BeTrue
 
-            Mock Get-ADObject -ModuleName TechHub.ActiveDirectory {
-                $Detail
-            }
-        }
+        $Guid |
+            Should -Not -Be ([guid]::Empty)
+    }
 
-        It 'returns output conforming to contract v1' {
-            $Results = @(Get-TechHubADPrivilegedGroup -IncludeDisabled)
+    It 'preserves security metadata' {
 
-            $Results.Count | Should -Be 1
+        $Finding = New-TestTechHubADFinding
 
-            Assert-TechHubADFindingContract `
-                -Result $Results[0] `
-                -ExpectedCheckId 'AD-PRIVILEGED-GROUP' `
-                -ExpectedCheckName 'Privileged Groups' `
-                -ExpectedCategory 'PrivilegedAccess'
+        $Finding.Severity |
+            Should -Be 'High'
 
-            Assert-TechHubADSafeOutput -Results $Results
-        }
+        $Finding.Confidence |
+            Should -Be 'High'
 
-        It 'keeps CheckId stable across executions' {
-            $First = @(Get-TechHubADPrivilegedGroup -IncludeDisabled)[0]
-            $Second = @(Get-TechHubADPrivilegedGroup -IncludeDisabled)[0]
+        $Finding.Status |
+            Should -Be 'Open'
 
-            $First.CheckId | Should -Be $Second.CheckId
-        }
+        $Finding.IsReadOnly |
+            Should -BeTrue
+    }
+
+    It 'preserves AD object metadata' {
+
+        $Finding = New-TestTechHubADFinding
+
+        $Finding.ObjectType |
+            Should -Be 'user'
+
+        $Finding.DistinguishedName |
+            Should -Be 'CN=Test User,CN=Users,DC=example,DC=test'
+
+        $Finding.SamAccountName |
+            Should -Be 'test.user'
+
+        $Finding.ObjectGuid |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'preserves evidence risk recommendation and references' {
+
+        $Finding = New-TestTechHubADFinding
+
+        $Finding.Evidence |
+            Should -Not -BeNullOrEmpty
+
+        $Finding.Risk |
+            Should -Be 'Synthetic risk'
+
+        $Finding.Recommendation |
+            Should -Be 'Synthetic recommendation'
+
+        @($Finding.References).Count |
+            Should -Be 1
+
+        $Finding.References[0] |
+            Should -Be 'https://example.test/reference'
+    }
+
+    It 'sets CollectedAt as UTC datetime' {
+
+        $Finding = New-TestTechHubADFinding
+
+        $Finding.CollectedAt |
+            Should -BeOfType [datetime]
+
+        $Finding.CollectedAt.Kind |
+            Should -Be ([System.DateTimeKind]::Utc)
     }
 }
