@@ -7,13 +7,13 @@ Describe 'TechHubADProvider' {
     BeforeAll {
 
         # ============================================================
-        # RESOLVE MODULE PATH
+        # RESOLVE PATHS
         # ============================================================
 
         $TestFile = $PSCommandPath
 
         if ([string]::IsNullOrWhiteSpace($TestFile)) {
-            throw 'Unable to determine the test file path.'
+            throw 'Unable to determine test file path.'
         }
 
         $TestFile = (Resolve-Path -LiteralPath $TestFile -ErrorAction Stop).Path
@@ -52,7 +52,10 @@ Describe 'TechHubADProvider' {
             -ErrorAction SilentlyContinue
 
         # ============================================================
-        # AD COMMAND STUBS
+        # CREATE AD COMMAND STUBS
+        #
+        # These exist only so Pester can mock them.
+        # The real ActiveDirectory module is NOT required.
         # ============================================================
 
         function global:Get-ADDomain {
@@ -91,7 +94,6 @@ Describe 'TechHubADProvider' {
             param(
                 [string]$Filter,
                 [string]$SearchBase,
-                [string[]]$Properties,
                 [string]$Server,
                 [string]$ErrorAction
             )
@@ -113,20 +115,6 @@ Describe 'TechHubADProvider' {
             $ModuleManifest `
             -Force `
             -ErrorAction Stop
-
-        # ============================================================
-        # MOCK AD MODULE AVAILABILITY
-        #
-        # The real ActiveDirectory module is not installed on the
-        # development workstation. Unit tests must therefore simulate
-        # its availability.
-        # ============================================================
-
-        Mock `
-            Test-TechHubADActiveDirectoryAvailability `
-            -ModuleName TechHub.ActiveDirectory {
-                $true
-            }
     }
 
     AfterAll {
@@ -206,7 +194,7 @@ Describe 'TechHubADProvider' {
             MemberOf                   = @(
                 'CN=Servers,DC=example,DC=test'
             )
-            'msDS-AllowedToDelegateTo' = @(
+            'msDS-AllowedToDelegateTo'  = @(
                 'HTTP/api.example.test'
             )
             SID                        = 'S-1-5-21-100-200-300-1101'
@@ -236,6 +224,21 @@ Describe 'TechHubADProvider' {
             UserAccountControl = 0
             SID                = 'S-1-5-21-100-200-300-1102'
         }
+
+        # ============================================================
+        # MOCK AVAILABILITY CHECK
+        #
+        # The real ActiveDirectory module is intentionally absent
+        # on this workstation.
+        #
+        # For unit tests we simulate its availability.
+        # ============================================================
+
+        Mock `
+            Test-TechHubADActiveDirectoryAvailability `
+            -ModuleName TechHub.ActiveDirectory {
+                $true
+            }
 
         # ============================================================
         # MOCK AD COMMANDS
@@ -287,7 +290,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # PROVIDER CREATION
+    # 1
     # ================================================================
 
     It 'creates a provider without contacting Active Directory' {
@@ -300,14 +303,14 @@ Describe 'TechHubADProvider' {
         $Provider.Server |
             Should -BeNullOrEmpty
 
-        Assert-MockCalled `
+        Should -Invoke `
             Get-ADObject `
             -ModuleName TechHub.ActiveDirectory `
             -Times 0
     }
 
     # ================================================================
-    # MODULE AVAILABILITY
+    # 2
     # ================================================================
 
     It 'reports module availability' {
@@ -319,7 +322,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # DOMAIN
+    # 3
     # ================================================================
 
     It 'retrieves domain information' {
@@ -339,7 +342,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # FOREST
+    # 4
     # ================================================================
 
     It 'retrieves forest information' {
@@ -359,7 +362,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # DOMAIN CONTROLLERS
+    # 5
     # ================================================================
 
     It 'retrieves domain controllers' {
@@ -376,7 +379,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # AD OBJECTS
+    # 6
     # ================================================================
 
     It 'retrieves and normalizes AD objects' {
@@ -404,10 +407,13 @@ Describe 'TechHubADProvider' {
             $Result.Data[0].ServicePrincipalName
         ).Count |
             Should -Be 1
+
+        $Result.Status |
+            Should -Be 'Available'
     }
 
     # ================================================================
-    # CONSTRAINED DELEGATION - SINGLE VALUE
+    # 7
     # ================================================================
 
     It 'preserves one constrained delegation target as a string array' {
@@ -436,7 +442,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # CONSTRAINED DELEGATION - MULTIPLE VALUES
+    # 8
     # ================================================================
 
     It 'preserves multiple delegation targets in source order' {
@@ -480,7 +486,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # CONSTRAINED DELEGATION - SCALAR
+    # 9
     # ================================================================
 
     It 'normalizes a scalar delegation target to a string array' {
@@ -515,26 +521,23 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # CONSTRAINED DELEGATION - ABSENT / NULL / EMPTY
+    # 10
     # ================================================================
 
     It 'returns null when the delegation attribute is absent, null, or empty' {
 
         foreach ($SourceObject in @(
-
             [PSCustomObject]@{
                 Name = 'ABSENT'
             }
 
             [PSCustomObject]@{
                 Name = 'NULL'
-
                 'msDS-AllowedToDelegateTo' = $null
             }
 
             [PSCustomObject]@{
                 Name = 'EMPTY'
-
                 'msDS-AllowedToDelegateTo' = @()
             }
         )) {
@@ -542,7 +545,6 @@ Describe 'TechHubADProvider' {
             Mock `
                 Get-ADObject `
                 -ModuleName TechHub.ActiveDirectory {
-
                     $SourceObject
                 }
 
@@ -565,7 +567,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # REQUESTED PROPERTIES
+    # 11
     # ================================================================
 
     It 'passes requested properties through to Get-ADObject' {
@@ -583,7 +585,7 @@ Describe 'TechHubADProvider' {
             $RequestedProperties
         ) | Out-Null
 
-        Assert-MockCalled `
+        Should -Invoke `
             Get-ADObject `
             -ModuleName TechHub.ActiveDirectory `
             -ParameterFilter {
@@ -596,7 +598,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # GROUPS
+    # 12
     # ================================================================
 
     It 'retrieves groups and group members' {
@@ -620,7 +622,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # PROVIDER STATUS
+    # 13
     # ================================================================
 
     It 'reports available provider status after successful operations' {
@@ -638,7 +640,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # PARTIAL STATUS
+    # 14
     # ================================================================
 
     It 'reports partial status when one operation fails after success' {
@@ -665,7 +667,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # MODULE UNAVAILABLE
+    # 15
     # ================================================================
 
     It 'reports NotAvailable when the ActiveDirectory module is unavailable' {
@@ -688,7 +690,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # ERROR CLASSIFICATION
+    # 16
     # ================================================================
 
     It 'classifies access denied, LDAP, not found and server errors' {
@@ -760,7 +762,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # SERVER PROPAGATION
+    # 17
     # ================================================================
 
     It 'propagates Server to read operations' {
@@ -779,7 +781,7 @@ Describe 'TechHubADProvider' {
             )
         ) | Out-Null
 
-        Assert-MockCalled `
+        Should -Invoke `
             Get-ADDomain `
             -ModuleName TechHub.ActiveDirectory `
             -ParameterFilter {
@@ -787,7 +789,7 @@ Describe 'TechHubADProvider' {
             } `
             -Times 1
 
-        Assert-MockCalled `
+        Should -Invoke `
             Get-ADObject `
             -ModuleName TechHub.ActiveDirectory `
             -ParameterFilter {
@@ -798,7 +800,7 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # MISSING PROPERTIES
+    # 18
     # ================================================================
 
     It 'returns null for missing properties without throwing' {
@@ -835,13 +837,17 @@ Describe 'TechHubADProvider' {
     }
 
     # ================================================================
-    # READ-ONLY SECURITY TEST
+    # 19
     # ================================================================
 
     It 'is read-only and contains no dynamic or modifying commands' {
 
         $Source = Get-Content `
-            -Path $ProviderPath `
+            -Path (
+                Join-Path `
+                    $ModuleRoot `
+                    'Providers\ActiveDirectory\TechHubADProvider.ps1'
+            ) `
             -Raw
 
         $Source -match '\b(Set|New|Remove|Add|Grant)-AD[A-Za-z]+' |
