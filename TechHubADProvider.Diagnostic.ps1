@@ -46,7 +46,7 @@ try {
 
     $FactoryPath = Join-Path `
         $ModuleRoot `
-        'Public\New-TechHubADProvider.ps1'
+        'Public\New-AssessmentADProvider.ps1'
 
     Write-Host "[2] Paths" -ForegroundColor Yellow
     Write-Host "ModuleRoot:     $ModuleRoot"
@@ -169,14 +169,14 @@ try {
     # 9. Provider factory
     # --------------------------------------------------------
 
-    Write-Host "[9] New-TechHubADProvider" -ForegroundColor Yellow
+    Write-Host "[9] New-AssessmentADProvider" -ForegroundColor Yellow
 
     $Factory = Get-Command `
-        New-TechHubADProvider `
+        New-AssessmentADProvider `
         -ErrorAction SilentlyContinue
 
     if ($null -eq $Factory) {
-        throw "New-TechHubADProvider is NOT available after module import."
+        throw "New-AssessmentADProvider is NOT available after module import."
     }
 
     $Factory |
@@ -194,10 +194,10 @@ try {
 
     Write-Host "[10] Creating provider" -ForegroundColor Yellow
 
-    $Provider = New-TechHubADProvider
+    $Provider = New-AssessmentADProvider
 
     if ($null -eq $Provider) {
-        throw "New-TechHubADProvider returned NULL."
+        throw "New-AssessmentADProvider returned NULL."
     }
 
     Write-Host "Type:   $($Provider.GetType().FullName)"

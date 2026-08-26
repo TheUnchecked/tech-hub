@@ -1,4 +1,4 @@
-function New-TechHubADCheckExecutionError {
+function New-AssessmentADCheckExecutionError {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]

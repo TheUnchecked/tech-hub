@@ -6,10 +6,10 @@ Describe 'TechHub Active Directory Remote Assessment contract' {
 
     BeforeAll {
         . "$PSScriptRoot\..\..\Classes\TechHubADAssessmentResult.ps1"
-        . "$PSScriptRoot\..\..\Public\New-TechHubADAssessmentResult.ps1"
-        . "$PSScriptRoot\..\..\Public\Invoke-TechHubADRemoteAssessment.ps1"
+        . "$PSScriptRoot\..\..\Public\New-AssessmentADAssessmentResult.ps1"
+        . "$PSScriptRoot\..\..\Public\Invoke-AssessmentADRemoteAssessment.ps1"
 
-        function Get-TechHubADServiceAccounts {
+        function Get-AssessmentADServiceAccounts {
             param(
                 [string]$ComputerName
             )
@@ -25,7 +25,7 @@ Describe 'TechHub Active Directory Remote Assessment contract' {
 
     It 'returns a TechHubADAssessmentResult' {
 
-        $result = Invoke-TechHubADRemoteAssessment `
+        $result = Invoke-AssessmentADRemoteAssessment `
             -ComputerName 'TEST01' `
             -Collector ServiceAccounts
 
@@ -35,7 +35,7 @@ Describe 'TechHub Active Directory Remote Assessment contract' {
 
     It 'stores remote collector results in Inventory' {
 
-        $result = Invoke-TechHubADRemoteAssessment `
+        $result = Invoke-AssessmentADRemoteAssessment `
             -ComputerName 'TEST01' `
             -Collector ServiceAccounts
 
@@ -48,7 +48,7 @@ Describe 'TechHub Active Directory Remote Assessment contract' {
 
     It 'preserves the collector identity' {
 
-        $result = Invoke-TechHubADRemoteAssessment `
+        $result = Invoke-AssessmentADRemoteAssessment `
             -ComputerName 'TEST01' `
             -Collector ServiceAccounts
 
@@ -58,7 +58,7 @@ Describe 'TechHub Active Directory Remote Assessment contract' {
 
     It 'preserves the source computer name' {
 
-        $result = Invoke-TechHubADRemoteAssessment `
+        $result = Invoke-AssessmentADRemoteAssessment `
             -ComputerName 'TEST01' `
             -Collector ServiceAccounts
 
@@ -68,7 +68,7 @@ Describe 'TechHub Active Directory Remote Assessment contract' {
 
     It 'marks remote assessment data as read-only' {
 
-        $result = Invoke-TechHubADRemoteAssessment `
+        $result = Invoke-AssessmentADRemoteAssessment `
             -ComputerName 'TEST01' `
             -Collector ServiceAccounts
 

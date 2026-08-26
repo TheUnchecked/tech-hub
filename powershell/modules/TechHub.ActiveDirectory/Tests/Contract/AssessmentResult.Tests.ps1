@@ -19,7 +19,7 @@ BeforeAll {
     }
 
     It 'creates an empty AssessmentResult with empty collections' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
 
         $Result.Findings.Count | Should -Be 0
         $Result.Observations.Count | Should -Be 0
@@ -30,7 +30,7 @@ BeforeAll {
     }
 
     It 'adds a finding and updates the severity summary' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
         $Finding = [PSCustomObject]@{ Severity = 'High'; CheckId = 'AD-TEST' }
 
         $Result.AddFinding($Finding)
@@ -42,7 +42,7 @@ BeforeAll {
     }
 
     It 'adds an observation' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
         $Observation = [PSCustomObject]@{ Name = 'Observation-1' }
 
         $Result.AddObservation($Observation)
@@ -52,7 +52,7 @@ BeforeAll {
     }
 
     It 'adds inventory' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
         $Inventory = [PSCustomObject]@{ Name = 'DC01' }
 
         $Result.AddInventory($Inventory)
@@ -62,7 +62,7 @@ BeforeAll {
     }
 
     It 'adds a health result' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
         $Health = [PSCustomObject]@{ Status = 'Healthy' }
 
         $Result.AddHealth($Health)
@@ -72,7 +72,7 @@ BeforeAll {
     }
 
     It 'adds a provider result and supports provider status values' {
-        $Result = New-TechHubADAssessmentResult -ProviderStatus 'Available'
+        $Result = New-AssessmentADAssessmentResult -ProviderStatus 'Available'
         $Result.AddProviderResult([PSCustomObject]@{ Provider = 'Synthetic' })
         $Result.SetProviderStatus('Partial')
 
@@ -82,7 +82,7 @@ BeforeAll {
     }
 
     It 'supports data availability values' {
-        $Result = New-TechHubADAssessmentResult -DataAvailability 'Complete'
+        $Result = New-AssessmentADAssessmentResult -DataAvailability 'Complete'
 
         $Result.SetDataAvailability('NotAvailable')
 
@@ -91,13 +91,13 @@ BeforeAll {
 
     It 'supports the defined result types' {
         foreach ($ResultType in @('Finding', 'Observation', 'Inventory', 'Health')) {
-            $Result = New-TechHubADAssessmentResult -ResultType $ResultType
+            $Result = New-AssessmentADAssessmentResult -ResultType $ResultType
             $Result.ResultType | Should -Be $ResultType
         }
     }
 
     It 'maintains a severity summary for multiple findings' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
         $Result.AddFinding([PSCustomObject]@{ Severity = 'High' })
         $Result.AddFinding([PSCustomObject]@{ Severity = 'High' })
         $Result.AddFinding([PSCustomObject]@{ Severity = 'Low' })
@@ -110,7 +110,7 @@ BeforeAll {
     It 'calculates duration from required timestamps' {
         $StartedAt = (Get-Date).ToUniversalTime().AddMinutes(-2)
         $CompletedAt = $StartedAt.AddMinutes(2)
-        $Result = New-TechHubADAssessmentResult -StartedAt $StartedAt
+        $Result = New-AssessmentADAssessmentResult -StartedAt $StartedAt
 
         $Result.Complete($CompletedAt)
 
@@ -121,7 +121,7 @@ BeforeAll {
 
     It 'provides required metadata fields' {
         $AssessmentId = [guid]'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-        $Result = New-TechHubADAssessmentResult `
+        $Result = New-AssessmentADAssessmentResult `
             -AssessmentId $AssessmentId `
             -Domain 'example.test' `
             -Forest 'example.test' `
@@ -141,7 +141,7 @@ BeforeAll {
     }
 
     It 'serializes safely without credentials or executable content' {
-        $Result = New-TechHubADAssessmentResult
+        $Result = New-AssessmentADAssessmentResult
         $Result.AddFinding([PSCustomObject]@{ Severity = 'Low'; Title = 'Synthetic finding' })
         $Result.AddObservation([PSCustomObject]@{ Name = 'Synthetic observation' })
         $Result.AddInventory([PSCustomObject]@{ Name = 'Synthetic inventory' })
@@ -159,7 +159,7 @@ BeforeAll {
     }
 
     It 'rejects unsupported provider status and data availability values' {
-        { New-TechHubADAssessmentResult -ProviderStatus 'Unknown' } | Should -Throw
-        { New-TechHubADAssessmentResult -DataAvailability 'Unknown' } | Should -Throw
+        { New-AssessmentADAssessmentResult -ProviderStatus 'Unknown' } | Should -Throw
+        { New-AssessmentADAssessmentResult -DataAvailability 'Unknown' } | Should -Throw
     }
 }

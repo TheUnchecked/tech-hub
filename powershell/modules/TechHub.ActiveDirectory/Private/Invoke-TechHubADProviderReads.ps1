@@ -2,7 +2,7 @@
 
 Set-StrictMode -Version Latest
 
-function New-TechHubADProviderReadResponse {
+function New-AssessmentADProviderReadResponse {
 
     [CmdletBinding()]
     param(
@@ -30,7 +30,7 @@ function Test-TechHubADProviderReadAvailability {
     Test-TechHubADActiveDirectoryAvailability
 }
 
-function Get-TechHubADProviderDomainInformation {
+function Get-AssessmentADProviderDomainInformation {
 
     [CmdletBinding()]
     param(
@@ -38,7 +38,7 @@ function Get-TechHubADProviderDomainInformation {
     )
 
     if (-not (Test-TechHubADProviderReadAvailability)) {
-        return New-TechHubADProviderReadResponse -IsAvailable $false
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
     }
 
     try {
@@ -47,14 +47,14 @@ function Get-TechHubADProviderDomainInformation {
             $Parameters.Server = $Server
         }
 
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Data @(Get-ADDomain @Parameters)
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADDomain @Parameters)
     }
     catch {
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
     }
 }
 
-function Get-TechHubADProviderForestInformation {
+function Get-AssessmentADProviderForestInformation {
 
     [CmdletBinding()]
     param(
@@ -62,7 +62,7 @@ function Get-TechHubADProviderForestInformation {
     )
 
     if (-not (Test-TechHubADProviderReadAvailability)) {
-        return New-TechHubADProviderReadResponse -IsAvailable $false
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
     }
 
     try {
@@ -71,14 +71,14 @@ function Get-TechHubADProviderForestInformation {
             $Parameters.Server = $Server
         }
 
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Data @(Get-ADForest @Parameters)
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADForest @Parameters)
     }
     catch {
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
     }
 }
 
-function Get-TechHubADProviderDomainControllers {
+function Get-AssessmentADProviderDomainControllers {
 
     [CmdletBinding()]
     param(
@@ -86,7 +86,7 @@ function Get-TechHubADProviderDomainControllers {
     )
 
     if (-not (Test-TechHubADProviderReadAvailability)) {
-        return New-TechHubADProviderReadResponse -IsAvailable $false
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
     }
 
     try {
@@ -95,14 +95,14 @@ function Get-TechHubADProviderDomainControllers {
             $Parameters.Server = $Server
         }
 
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Data @(Get-ADDomainController @Parameters)
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADDomainController @Parameters)
     }
     catch {
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
     }
 }
 
-function Get-TechHubADProviderObjects {
+function Get-AssessmentADProviderObjects {
 
     [CmdletBinding()]
     param(
@@ -113,7 +113,7 @@ function Get-TechHubADProviderObjects {
     )
 
     if (-not (Test-TechHubADProviderReadAvailability)) {
-        return New-TechHubADProviderReadResponse -IsAvailable $false
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
     }
 
     try {
@@ -132,14 +132,14 @@ function Get-TechHubADProviderObjects {
         $Objects = @(Get-ADObject @Parameters | ForEach-Object {
             ConvertTo-TechHubADProviderObject -InputObject $_
         })
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Data $Objects
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data $Objects
     }
     catch {
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
     }
 }
 
-function Get-TechHubADProviderGroups {
+function Get-AssessmentADProviderGroups {
 
     [CmdletBinding()]
     param(
@@ -149,7 +149,7 @@ function Get-TechHubADProviderGroups {
     )
 
     if (-not (Test-TechHubADProviderReadAvailability)) {
-        return New-TechHubADProviderReadResponse -IsAvailable $false
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
     }
 
     try {
@@ -164,14 +164,14 @@ function Get-TechHubADProviderGroups {
             $Parameters.Server = $Server
         }
 
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Data @(Get-ADGroup @Parameters)
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADGroup @Parameters)
     }
     catch {
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
     }
 }
 
-function Get-TechHubADProviderGroupMembers {
+function Get-AssessmentADProviderGroupMembers {
 
     [CmdletBinding()]
     param(
@@ -180,7 +180,7 @@ function Get-TechHubADProviderGroupMembers {
     )
 
     if (-not (Test-TechHubADProviderReadAvailability)) {
-        return New-TechHubADProviderReadResponse -IsAvailable $false
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
     }
 
     try {
@@ -189,9 +189,9 @@ function Get-TechHubADProviderGroupMembers {
             $Parameters.Server = $Server
         }
 
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Data @(Get-ADGroupMember @Parameters)
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADGroupMember @Parameters)
     }
     catch {
-        return New-TechHubADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
     }
 }

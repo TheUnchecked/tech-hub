@@ -295,7 +295,7 @@ Describe 'TechHubADProvider' {
 
     It 'creates a provider without contacting Active Directory' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $Provider.GetType().Name |
             Should -Be 'TechHubADProvider'
@@ -315,7 +315,7 @@ Describe 'TechHubADProvider' {
 
     It 'reports module availability' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $Provider.GetDomainInformation().Status |
             Should -Be 'Available'
@@ -328,7 +328,7 @@ Describe 'TechHubADProvider' {
     It 'retrieves domain information' {
 
         $Result = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetDomainInformation()
 
         $Result.Data[0].DNSRoot |
@@ -348,7 +348,7 @@ Describe 'TechHubADProvider' {
     It 'retrieves forest information' {
 
         $Result = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetForestInformation()
 
         $Result.Data[0].Name |
@@ -368,7 +368,7 @@ Describe 'TechHubADProvider' {
     It 'retrieves domain controllers' {
 
         $Result = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetDomainControllers()
 
         $Result.Data[0].Name |
@@ -385,7 +385,7 @@ Describe 'TechHubADProvider' {
     It 'retrieves and normalizes AD objects' {
 
         $Result = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetADObjects(
             '(objectClass=computer)',
             $null,
@@ -418,7 +418,7 @@ Describe 'TechHubADProvider' {
 
     It 'preserves one constrained delegation target as a string array' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $Result = $Provider.GetADObjects(
             '(objectClass=computer)',
@@ -466,7 +466,7 @@ Describe 'TechHubADProvider' {
             }
 
         $Object = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetADObjects(
             '(objectClass=computer)',
             $null,
@@ -504,7 +504,7 @@ Describe 'TechHubADProvider' {
             }
 
         $Object = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetADObjects(
             '(objectClass=computer)',
             $null,
@@ -549,7 +549,7 @@ Describe 'TechHubADProvider' {
                 }
 
             $Object = (
-                New-TechHubADProvider
+                New-AssessmentADProvider
             ).GetADObjects(
                 '(objectClass=computer)',
                 $null,
@@ -577,7 +577,7 @@ Describe 'TechHubADProvider' {
             'msDS-AllowedToDelegateTo'
         )
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $Provider.GetADObjects(
             '(objectClass=computer)',
@@ -603,7 +603,7 @@ Describe 'TechHubADProvider' {
 
     It 'retrieves groups and group members' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $GroupResult = $Provider.GetGroups(
             $null,
@@ -627,7 +627,7 @@ Describe 'TechHubADProvider' {
 
     It 'reports available provider status after successful operations' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $Provider.GetDomainInformation() |
             Out-Null
@@ -645,7 +645,7 @@ Describe 'TechHubADProvider' {
 
     It 'reports partial status when one operation fails after success' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         $Provider.GetDomainInformation() |
             Out-Null
@@ -679,7 +679,7 @@ Describe 'TechHubADProvider' {
             }
 
         $Result = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetDomainInformation()
 
         $Result.Status |
@@ -695,7 +695,7 @@ Describe 'TechHubADProvider' {
 
     It 'classifies access denied, LDAP, not found and server errors' {
 
-        $Provider = New-TechHubADProvider
+        $Provider = New-AssessmentADProvider
 
         Mock `
             Get-ADObject `
@@ -767,7 +767,7 @@ Describe 'TechHubADProvider' {
 
     It 'propagates Server to read operations' {
 
-        $Provider = New-TechHubADProvider `
+        $Provider = New-AssessmentADProvider `
             -Server 'dc01.example.test'
 
         $Provider.GetDomainInformation() |
@@ -815,7 +815,7 @@ Describe 'TechHubADProvider' {
             }
 
         $Object = (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetADObjects(
             '(objectClass=*)',
             $null,
@@ -866,7 +866,7 @@ Describe 'TechHubADProvider' {
         }
 
         (
-            New-TechHubADProvider
+            New-AssessmentADProvider
         ).GetDomainInformation().IsReadOnly |
             Should -BeTrue
     }

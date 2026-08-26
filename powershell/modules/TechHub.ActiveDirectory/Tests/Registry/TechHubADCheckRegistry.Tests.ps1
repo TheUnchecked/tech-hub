@@ -43,7 +43,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'registers all four current checks' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $Registry |
             Should -Not -BeNullOrEmpty
@@ -52,24 +52,24 @@ Describe 'TechHubADCheckRegistry' {
             Should -Be 4
 
         $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-TechHubADUnconstrainedDelegation'
+            Should -Contain 'Get-AssessmentADUnconstrainedDelegation'
 
         $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-TechHubADConstrainedDelegation'
+            Should -Contain 'Get-AssessmentADConstrainedDelegation'
 
         $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-TechHubADRBCD'
+            Should -Contain 'Get-AssessmentADRBCD'
 
         $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-TechHubADPrivilegedGroup'
+            Should -Contain 'Get-AssessmentADPrivilegedGroup'
 
         $Registry.GetAll().FunctionName |
-            Should -Not -Contain 'Get-TechHubADTrustedToAuth'
+            Should -Not -Contain 'Get-AssessmentADTrustedToAuth'
     }
 
     It 'retrieves a definition by CheckId' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $Definition = $Registry.Get('AD-RBCD')
 
@@ -82,7 +82,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'returns all definitions' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         @($Registry.GetAll()).Count |
             Should -Be 4
@@ -90,7 +90,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'finds definitions by category' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         @($Registry.FindByCategory('Delegation')).Count |
             Should -Be 3
@@ -101,7 +101,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'finds definitions by provider' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $Definitions = @(
             $Registry.FindByProvider('TechHubADProvider')
@@ -113,7 +113,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'returns null for an unknown CheckId' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $Definition = $Registry.Get('AD-DOES-NOT-EXIST')
 
@@ -123,7 +123,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'does not return disabled checks by default' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $EnabledDefinitions = @(
             $Registry.GetAll() |
@@ -136,7 +136,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'preserves read-only metadata' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $Registry.GetAll() |
             ForEach-Object {
@@ -242,7 +242,7 @@ Describe 'TechHubADCheckRegistry' {
 
     It 'preserves registration order' {
 
-        $Registry = New-TechHubADCheckRegistry
+        $Registry = New-AssessmentADCheckRegistry
 
         $Ids = @(
             $Registry.GetAll().CheckId

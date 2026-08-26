@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`Invoke-TechHubADAssessment` is the first orchestration layer for the registered Active Directory checks. It discovers check definitions from `New-TechHubADCheckRegistry`, resolves their function names safely, executes enabled read-only checks, and returns a `TechHubADAssessmentResult`.
+`Invoke-AssessmentADAssessment` is the first orchestration layer for the registered Active Directory checks. It discovers check definitions from `New-AssessmentADCheckRegistry`, resolves their function names safely, executes enabled read-only checks, and returns a `TechHubADAssessmentResult`.
 
 It does not contain a hardcoded check list, query Active Directory itself, create providers, calculate severity, or generate reports.
 
@@ -28,9 +28,9 @@ Before execution, if at least one selected definition requires `TechHubAD` or `T
 ## Usage
 
 ```powershell
-Invoke-TechHubADAssessment
-Invoke-TechHubADAssessment -CheckId 'AD-RBCD'
-Invoke-TechHubADAssessment -Category 'Delegation'
+Invoke-AssessmentADAssessment
+Invoke-AssessmentADAssessment -CheckId 'AD-RBCD'
+Invoke-AssessmentADAssessment -Category 'Delegation'
 ```
 
 `-Server`, `-SearchBase`, and `-Provider` are passed only when the resolved check function exposes a parameter with that name. Existing checks remain compatible because they are not forced to accept a provider.

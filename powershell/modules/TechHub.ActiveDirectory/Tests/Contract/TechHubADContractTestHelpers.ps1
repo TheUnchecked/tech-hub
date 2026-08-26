@@ -2,7 +2,7 @@
 
 Set-StrictMode -Version Latest
 
-function global:Get-TechHubADFindingContractProperties {
+function global:Get-AssessmentADFindingContractProperties {
     @(
         'AssessmentId'
         'CheckId'
@@ -92,7 +92,7 @@ function global:Assert-TechHubADFindingContract {
 
     $PropertyNames = @($Result.PSObject.Properties.Name)
 
-    foreach ($PropertyName in (Get-TechHubADFindingContractProperties)) {
+    foreach ($PropertyName in (Get-AssessmentADFindingContractProperties)) {
 
         $PropertyNames |
             Should -Contain $PropertyName
@@ -158,7 +158,7 @@ function global:Assert-TechHubADSafeOutput {
         Should -Not -Match '^\s*\[[0-9]{4}-[0-9]{2}-[0-9]{2}[^\r\n]*\]\s+\[(INFO|WARNING|ERROR)\]'
 }
 
-function global:New-TechHubADContractDescriptor {
+function global:New-AssessmentADContractDescriptor {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]

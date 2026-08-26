@@ -1,4 +1,4 @@
-function New-TechHubADFinding {
+function New-AssessmentADFinding {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]

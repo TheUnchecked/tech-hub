@@ -16,46 +16,46 @@
         # Active Directory checks
         # ------------------------------------------------------------
 
-        'Get-TechHubADInventory'
-        'Get-TechHubADUnconstrainedDelegation'
-        'Get-TechHubADConstrainedDelegation'
-        'Get-TechHubADRBCD'
-        'Get-TechHubADPrivilegedGroup'
-        'Get-TechHubADServiceAccounts'
+        'Get-AssessmentADInventory'
+        'Get-AssessmentADUnconstrainedDelegation'
+        'Get-AssessmentADConstrainedDelegation'
+        'Get-AssessmentADRBCD'
+        'Get-AssessmentADPrivilegedGroup'
+        'Get-AssessmentADServiceAccounts'
 
         # ------------------------------------------------------------
         # Remote assessment collectors
         # ------------------------------------------------------------
 
-        'Get-TechHubADRemoteIISAppPoolAccounts'
-        'Get-TechHubADRemoteLocalGroupMembers'
-        'Get-TechHubADRemoteNetworkShareACLs'
-        'Get-TechHubADRemoteScheduledTaskAccounts'
-        'Get-TechHubADRemoteOSInfo'
-        'Get-TechHubADRemoteWindowsFeatures'
+        'Get-AssessmentADRemoteIISAppPoolAccounts'
+        'Get-AssessmentADRemoteLocalGroupMembers'
+        'Get-AssessmentADRemoteNetworkShareACLs'
+        'Get-AssessmentADRemoteScheduledTaskAccounts'
+        'Get-AssessmentADRemoteOSInfo'
+        'Get-AssessmentADRemoteWindowsFeatures'
 
         # ------------------------------------------------------------
         # Assessment engine
         # ------------------------------------------------------------
 
-        'New-TechHubADAssessmentResult'
-        'New-TechHubADCheckRegistry'
-        'Invoke-TechHubADAssessment'
-        'Invoke-TechHubADRemoteAssessment'
+        'New-AssessmentADAssessmentResult'
+        'New-AssessmentADCheckRegistry'
+        'Invoke-AssessmentADAssessment'
+        'Invoke-AssessmentADRemoteAssessment'
 
         # ------------------------------------------------------------
         # Provider
         # ------------------------------------------------------------
 
-        'New-TechHubADProvider'
+        'New-AssessmentADProvider'
 
         # ------------------------------------------------------------
         # Exporters
         # ------------------------------------------------------------
 
-        'Export-TechHubADAssessmentJson'
-        'Export-TechHubADAssessmentCsv'
-        'Export-TechHubADAssessmentHtml'
+        'Export-AssessmentADAssessmentJson'
+        'Export-AssessmentADAssessmentCsv'
+        'Export-AssessmentADAssessmentHtml'
     )
 
     CmdletsToExport = @()

@@ -25,7 +25,7 @@ The registry validates required metadata and rejects writable definitions. It do
 ## Lifecycle
 
 ```powershell
-$Registry = New-TechHubADCheckRegistry
+$Registry = New-AssessmentADCheckRegistry
 $Registry.Get('AD-RBCD')
 $Registry.FindByCategory('Delegation')
 $Registry.FindByProvider('TechHubADProvider')
@@ -38,10 +38,10 @@ $Registry.SetEnabled('AD-RBCD', $false)
 
 The default registry contains:
 
-- `AD-UNCONSTRAINED-DELEGATION` -> `Get-TechHubADUnconstrainedDelegation`
-- `AD-CONSTRAINED-DELEGATION` -> `Get-TechHubADConstrainedDelegation`
-- `AD-RBCD` -> `Get-TechHubADRBCD`
-- `AD-PRIVILEGED-GROUP` -> `Get-TechHubADPrivilegedGroup`
+- `AD-UNCONSTRAINED-DELEGATION` -> `Get-AssessmentADUnconstrainedDelegation`
+- `AD-CONSTRAINED-DELEGATION` -> `Get-AssessmentADConstrainedDelegation`
+- `AD-RBCD` -> `Get-AssessmentADRBCD`
+- `AD-PRIVILEGED-GROUP` -> `Get-AssessmentADPrivilegedGroup`
 
 TrustedToAuth is not registered because it is not currently implemented.
 

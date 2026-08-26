@@ -163,7 +163,7 @@ class TechHubADProvider {
 
         $Operation = 'GetDomainInformation'
 
-        $ReadResult = Get-TechHubADProviderDomainInformation -Server $this.Server
+        $ReadResult = Get-AssessmentADProviderDomainInformation -Server $this.Server
         if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
@@ -181,7 +181,7 @@ class TechHubADProvider {
 
         $Operation = 'GetForestInformation'
 
-        $ReadResult = Get-TechHubADProviderForestInformation -Server $this.Server
+        $ReadResult = Get-AssessmentADProviderForestInformation -Server $this.Server
         if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
@@ -199,7 +199,7 @@ class TechHubADProvider {
 
         $Operation = 'GetDomainControllers'
 
-        $ReadResult = Get-TechHubADProviderDomainControllers -Server $this.Server
+        $ReadResult = Get-AssessmentADProviderDomainControllers -Server $this.Server
         if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
@@ -221,7 +221,7 @@ class TechHubADProvider {
 
         $Operation = 'GetADObjects'
 
-        $ReadResult = Get-TechHubADProviderObjects -LDAPFilter $LDAPFilter -SearchBase $SearchBase -Properties $Properties -Server $this.Server
+        $ReadResult = Get-AssessmentADProviderObjects -LDAPFilter $LDAPFilter -SearchBase $SearchBase -Properties $Properties -Server $this.Server
         if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
@@ -242,7 +242,7 @@ class TechHubADProvider {
 
         $Operation = 'GetGroups'
 
-        $ReadResult = Get-TechHubADProviderGroups -Filter $Filter -SearchBase $SearchBase -Server $this.Server
+        $ReadResult = Get-AssessmentADProviderGroups -Filter $Filter -SearchBase $SearchBase -Server $this.Server
         if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }
@@ -262,7 +262,7 @@ class TechHubADProvider {
 
         $Operation = 'GetGroupMembers'
 
-        $ReadResult = Get-TechHubADProviderGroupMembers -Identity $Identity -Server $this.Server
+        $ReadResult = Get-AssessmentADProviderGroupMembers -Identity $Identity -Server $this.Server
         if (-not $ReadResult.IsAvailable) {
             return $this.NewUnavailableResult($Operation)
         }

@@ -9,7 +9,7 @@ The provider layer collects Active Directory data, normalizes it into predictabl
 `TechHubADProvider` is created with:
 
 ```powershell
-$Provider = New-TechHubADProvider -Server 'dc01.example.test'
+$Provider = New-AssessmentADProvider -Server 'dc01.example.test'
 ```
 
 Supported read-only operations:
