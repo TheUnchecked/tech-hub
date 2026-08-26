@@ -5,20 +5,30 @@ Set-StrictMode -Version Latest
 function Get-AssessmentADRemoteOSInfo {
     <#
     .SYNOPSIS
-        Collects operating system information from remote Windows computers.
+        Collects operating system information from a remote Windows computer.
 
     .DESCRIPTION
-        Read-only remote assessment using PowerShell Remoting and WMI.
-        Returns a normalized record for each target.
+        Performs a read-only remote OS assessment.
+
+        Transport preference:
+
+        1. CIM / WSMan
+        2. CIM / DCOM
+
+        The collector returns the actual remote operating system
+        information and ProductType classification data.
+
+        ProductType:
+
+        1 = Client
+        2 = Domain Controller
+        3 = Server
 
     .PARAMETER ComputerName
-        One or more remote Windows computers.
+        Remote computer name.
 
     .PARAMETER Credential
         Optional alternate credential.
-
-    .PARAMETER UseSSL
-        Uses WinRM HTTPS.
 
     .OUTPUTS
         ComputerName
@@ -26,94 +36,338 @@ function Get-AssessmentADRemoteOSInfo {
         OSVersion
         OSBuildNumber
         OSSKU
+        ProductType
+        TargetType
         WindowsInstallationType
         Status
+        DataAvailability
+        CollectionMethod
+        ErrorType
+        ErrorMessage
         IsReadOnly
     #>
 
     [CmdletBinding()]
     param(
         [Parameter(
-            Mandatory,
-            ValueFromPipeline,
-            ValueFromPipelineByPropertyName,
-            Position = 0
+            Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true
         )]
-        [Alias('CN','PSComputerName','Name','Computer')]
-        [string[]]$ComputerName,
+        [Alias(
+            'Computer',
+            'CN',
+            'Name',
+            'DNSHostName'
+        )]
+        [ValidateNotNullOrEmpty()]
+        [string]$ComputerName,
 
         [Parameter()]
-        [System.Management.Automation.PSCredential]$Credential,
-
-        [switch]$UseSSL
+        [System.Management.Automation.PSCredential]$Credential
     )
 
     process {
-        foreach ($Computer in $ComputerName) {
 
-            $invokeParams = @{
-                ComputerName = $Computer
+        Write-Verbose `
+            "Collecting OS information from [$ComputerName]."
+
+        try {
+
+            # ====================================================
+            # CIM REMOTE QUERY
+            # ====================================================
+
+            $InvokeParams = @{
+                ComputerName = $ComputerName
                 ErrorAction  = 'Stop'
                 ScriptBlock  = {
-                    try {
-                        $os = Get-CimInstance `
-                            -ClassName Win32_OperatingSystem `
-                            -ErrorAction Stop
+                    param(
+                        $Session
+                    )
 
-                        $installationType = $null
-
-                        try {
-                            $reg = Get-ItemProperty `
-                                -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' `
-                                -Name 'InstallationType' `
-                                -ErrorAction Stop
-
-                            $installationType = $reg.InstallationType
-                        }
-                        catch {
-                            $installationType = $null
-                        }
-
-                        [PSCustomObject][ordered]@{
-                            ComputerName            = $os.CSName
-                            OSCaption               = $os.Caption
-                            OSVersion               = $os.Version
-                            OSBuildNumber           = [int]$os.BuildNumber
-                            OSSKU                   = $os.OperatingSystemSKU
-                            WindowsInstallationType = $installationType
-                            Status                  = 'Available'
-                            IsReadOnly              = $true
-                        }
-                    }
-                    catch {
-                        [PSCustomObject][ordered]@{
-                            ComputerName            = $env:COMPUTERNAME
-                            OSCaption               = $null
-                            OSVersion               = $null
-                            OSBuildNumber           = $null
-                            OSSKU                   = $null
-                            WindowsInstallationType = $null
-                            Status                  = 'Error'
-                            IsReadOnly              = $true
-                        }
-                    }
+                    Get-CimInstance `
+                        -CimSession $Session `
+                        -ClassName Win32_OperatingSystem `
+                        -ErrorAction Stop |
+                    Select-Object `
+                        CSName,
+                        Caption,
+                        Version,
+                        BuildNumber,
+                        OperatingSystemSKU,
+                        ProductType
                 }
             }
 
-            if ($PSBoundParameters.ContainsKey('Credential')) {
-                $invokeParams.Credential = $Credential
+            if (
+                $PSBoundParameters.ContainsKey(
+                    'Credential'
+                )
+            ) {
+
+                $InvokeParams.Credential = $Credential
             }
 
-            if ($UseSSL) {
-                $invokeParams.UseSSL = $true
+            # ====================================================
+            # USE INTERNAL CIM TRANSPORT HELPER
+            # ====================================================
+
+            $TransportResult = & (
+                Get-Module TechHub.ActiveDirectory
+            ) {
+
+                Invoke-AssessmentADRemoteCimQuery `
+                    -ComputerName $ComputerName `
+                    -Credential $Credential `
+                    -ScriptBlock {
+                        param(
+                            $Session
+                        )
+
+                        Get-CimInstance `
+                            -CimSession $Session `
+                            -ClassName Win32_OperatingSystem `
+                            -ErrorAction Stop |
+                        Select-Object `
+                            CSName,
+                            Caption,
+                            Version,
+                            BuildNumber,
+                            OperatingSystemSKU,
+                            ProductType
+                    }
             }
 
-            try {
-                Invoke-Command @invokeParams
+            # ====================================================
+            # TRANSPORT FAILURE
+            # ====================================================
+
+            if (
+                $TransportResult.Status -ne 'Available'
+            ) {
+
+                [PSCustomObject][ordered]@{
+
+                    ComputerName = `
+                        $ComputerName
+
+                    OSCaption = $null
+
+                    OSVersion = $null
+
+                    OSBuildNumber = $null
+
+                    OSSKU = $null
+
+                    ProductType = $null
+
+                    TargetType = 'Unknown'
+
+                    WindowsInstallationType = $null
+
+                    Status = 'NotAvailable'
+
+                    DataAvailability = 'NotAvailable'
+
+                    CollectionMethod = 'None'
+
+                    ErrorType = `
+                        $TransportResult.ErrorType
+
+                    ErrorMessage = `
+                        $TransportResult.ErrorMessage
+
+                    IsReadOnly = $true
+                }
+
+                return
             }
-            catch {
-                Write-Error `
-                    -Message "[$Computer] Remote query failed: $($_.Exception.Message)"
+
+            # ====================================================
+            # REMOTE DATA
+            # ====================================================
+
+            $OS = @(
+                $TransportResult.Data
+            ) | Select-Object -First 1
+
+            if ($null -eq $OS) {
+
+                [PSCustomObject][ordered]@{
+
+                    ComputerName = `
+                        $ComputerName
+
+                    OSCaption = $null
+
+                    OSVersion = $null
+
+                    OSBuildNumber = $null
+
+                    OSSKU = $null
+
+                    ProductType = $null
+
+                    TargetType = 'Unknown'
+
+                    WindowsInstallationType = $null
+
+                    Status = 'NotAvailable'
+
+                    DataAvailability = 'NotAvailable'
+
+                    CollectionMethod = `
+                        $TransportResult.Transport
+
+                    ErrorType = 'NoData'
+
+                    ErrorMessage = `
+                        'Remote operating system query returned no data.'
+
+                    IsReadOnly = $true
+                }
+
+                return
+            }
+
+            # ====================================================
+            # PRODUCT TYPE
+            # ====================================================
+
+            $ProductType = $null
+
+            if (
+                $OS.PSObject.Properties['ProductType']
+            ) {
+
+                try {
+
+                    $ProductType = `
+                        [int]$OS.ProductType
+                }
+                catch {
+
+                    $ProductType = $null
+                }
+            }
+
+            # ====================================================
+            # TARGET TYPE
+            # ====================================================
+
+            $TargetType = 'Unknown'
+
+            switch ($ProductType) {
+
+                1 {
+                    $TargetType = 'Client'
+                }
+
+                2 {
+                    $TargetType = 'DomainController'
+                }
+
+                3 {
+                    $TargetType = 'Server'
+                }
+            }
+
+            # ====================================================
+            # COLLECTION METHOD
+            # ====================================================
+
+            $CollectionMethod = 'WMI'
+
+            if (
+                $TransportResult.Transport -eq 'WSMan'
+            ) {
+
+                $CollectionMethod = 'WinRM'
+            }
+
+            # ====================================================
+            # RESULT
+            # ====================================================
+
+            [PSCustomObject][ordered]@{
+
+                ComputerName = `
+                    $ComputerName
+
+                OSCaption = `
+                    [string]$OS.Caption
+
+                OSVersion = `
+                    [string]$OS.Version
+
+                OSBuildNumber = `
+                    [string]$OS.BuildNumber
+
+                OSSKU = `
+                    $OS.OperatingSystemSKU
+
+                ProductType = `
+                    $ProductType
+
+                TargetType = `
+                    $TargetType
+
+                WindowsInstallationType = `
+                    $null
+
+                Status = `
+                    'Available'
+
+                DataAvailability = `
+                    'Available'
+
+                CollectionMethod = `
+                    $CollectionMethod
+
+                ErrorType = `
+                    $null
+
+                ErrorMessage = `
+                    $null
+
+                IsReadOnly = `
+                    $true
+            }
+        }
+        catch {
+
+            [PSCustomObject][ordered]@{
+
+                ComputerName = `
+                    $ComputerName
+
+                OSCaption = $null
+
+                OSVersion = $null
+
+                OSBuildNumber = $null
+
+                OSSKU = $null
+
+                ProductType = $null
+
+                TargetType = 'Unknown'
+
+                WindowsInstallationType = $null
+
+                Status = 'NotAvailable'
+
+                DataAvailability = 'NotAvailable'
+
+                CollectionMethod = 'None'
+
+                ErrorType = 'RemoteOSQueryError'
+
+                ErrorMessage = `
+                    $_.Exception.Message
+
+                IsReadOnly = $true
             }
         }
     }

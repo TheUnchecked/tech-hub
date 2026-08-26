@@ -22,6 +22,7 @@
         'Get-AssessmentADRBCD'
         'Get-AssessmentADPrivilegedGroup'
         'Get-AssessmentADServiceAccounts'
+        'Get-AssessmentADRemoteTargets'
 
         # ------------------------------------------------------------
         # Remote assessment collectors
