@@ -6,6 +6,27 @@ Describe 'Get-TechHubADRemoteNetworkShareACLs' {
 
     BeforeAll {
         . "$PSScriptRoot\..\Public\Get-TechHubADRemoteNetworkShareACLs.ps1"
+
+        if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
+            function global:New-CimSession {
+                throw 'Synthetic CIM session'
+            }
+        }
+
+        if (-not (Get-Command New-CimSessionOption -ErrorAction SilentlyContinue)) {
+            function global:New-CimSessionOption {
+                throw 'Synthetic CIM option'
+            }
+        }
+
+        if (-not (Get-Command Remove-CimSession -ErrorAction SilentlyContinue)) {
+            function global:Remove-CimSession {
+                param(
+                    [Parameter(ValueFromPipeline)]
+                    [object]$CimSession
+                )
+            }
+        }
     }
 
     It 'has the expected read-only contract' {
@@ -43,9 +64,11 @@ Describe 'Get-TechHubADRemoteNetworkShareACLs' {
             Get-TechHubADRemoteNetworkShareACLs `
                 -ErrorVariable errors `
                 -ErrorAction SilentlyContinue
-        ) | Should -HaveCount 0
+        ) |
+            Should -HaveCount 0
 
-        $errors.Count | Should -BeGreaterThan 0
+        $errors.Count |
+            Should -BeGreaterThan 0
     }
 
     It 'handles remote connection failure' {
@@ -67,8 +90,11 @@ Describe 'Get-TechHubADRemoteNetworkShareACLs' {
                 -ErrorAction SilentlyContinue
         )
 
-        $result.Count | Should -Be 0
-        $errors.Count | Should -BeGreaterThan 0
+        $result.Count |
+            Should -Be 0
+
+        $errors.Count |
+            Should -BeGreaterThan 0
     }
 
     It 'supports IncludeAdminShares parameter' {

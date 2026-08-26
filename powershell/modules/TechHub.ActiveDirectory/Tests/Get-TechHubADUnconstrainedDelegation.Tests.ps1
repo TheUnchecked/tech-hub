@@ -474,7 +474,7 @@ Describe 'Get-TechHubADConstrainedDelegation provider migration' {
         $Results.Count |
             Should -Be 1
 
-        Assert-MockCalled `
+        Should -Invoke `
             New-TechHubADProvider `
             -ModuleName TechHub.ActiveDirectory `
             -ParameterFilter {

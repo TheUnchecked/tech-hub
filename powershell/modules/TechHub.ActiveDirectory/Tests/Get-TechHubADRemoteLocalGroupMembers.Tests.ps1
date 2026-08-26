@@ -6,6 +6,39 @@ Describe 'Get-TechHubADRemoteLocalGroupMembers' {
 
     BeforeAll {
         . "$PSScriptRoot\..\Public\Get-TechHubADRemoteLocalGroupMembers.ps1"
+
+        if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
+            function global:New-CimSession {
+                throw 'Synthetic CIM session'
+            }
+        }
+
+        if (-not (Get-Command New-CimSessionOption -ErrorAction SilentlyContinue)) {
+            function global:New-CimSessionOption {
+                throw 'Synthetic CIM option'
+            }
+        }
+
+        if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
+            function global:Get-CimInstance {
+                throw 'Synthetic CIM query'
+            }
+        }
+
+        if (-not (Get-Command Get-CimAssociatedInstance -ErrorAction SilentlyContinue)) {
+            function global:Get-CimAssociatedInstance {
+                throw 'Synthetic CIM association query'
+            }
+        }
+
+        if (-not (Get-Command Remove-CimSession -ErrorAction SilentlyContinue)) {
+            function global:Remove-CimSession {
+                param(
+                    [Parameter(ValueFromPipeline)]
+                    [object]$CimSession
+                )
+            }
+        }
     }
 
     It 'returns local groups and members' {
@@ -42,15 +75,14 @@ Describe 'Get-TechHubADRemoteLocalGroupMembers' {
 
         Mock Remove-CimSession {}
 
-        # Il contratto viene verificato tramite la funzione
-        # senza tentare di costruire una CimSession reale.
         $result = @(
             Get-TechHubADRemoteLocalGroupMembers `
                 -ComputerName 'WEB01' `
                 -ErrorAction SilentlyContinue
         )
 
-        $result.Count | Should -Be 0
+        $result.Count |
+            Should -Be 0
     }
 
     It 'handles CIM connection failure' {
@@ -72,8 +104,11 @@ Describe 'Get-TechHubADRemoteLocalGroupMembers' {
                 -ErrorAction SilentlyContinue
         )
 
-        $result.Count | Should -Be 0
-        $errors.Count | Should -BeGreaterThan 0
+        $result.Count |
+            Should -Be 0
+
+        $errors.Count |
+            Should -BeGreaterThan 0
     }
 
     It 'supports pipeline input' {
@@ -93,9 +128,11 @@ Describe 'Get-TechHubADRemoteLocalGroupMembers' {
             Get-TechHubADRemoteLocalGroupMembers `
                 -ErrorVariable errors `
                 -ErrorAction SilentlyContinue
-        ) | Should -HaveCount 0
+        ) |
+            Should -HaveCount 0
 
-        $errors.Count | Should -BeGreaterThan 0
+        $errors.Count |
+            Should -BeGreaterThan 0
     }
 
     It 'is read-only' {

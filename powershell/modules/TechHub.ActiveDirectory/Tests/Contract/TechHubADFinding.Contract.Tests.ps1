@@ -2,25 +2,24 @@
 
 Set-StrictMode -Version Latest
 
-$TestFile = $MyInvocation.MyCommand.Path
-$TestRoot = Split-Path -Parent $PSScriptRoot
-$ModuleRoot = Split-Path -Parent $TestRoot
-$ModuleManifest = Join-Path $ModuleRoot 'TechHub.ActiveDirectory.psd1'
-$HelperPath = Join-Path $PSScriptRoot 'TechHubADContractTestHelpers.ps1'
 
-if (-not (Test-Path -LiteralPath $ModuleManifest)) {
-    throw "TechHub.ActiveDirectory module manifest not found: $ModuleManifest"
-}
-
-if (-not (Test-Path -LiteralPath $HelperPath)) {
-    throw "TechHubADContractTestHelpers.ps1 not found: $HelperPath"
-}
-
-. $HelperPath
 
 Describe 'TechHub.ActiveDirectory finding contract v1' {
 
     BeforeAll {
+                $ModuleRoot = (Resolve-Path "$PSScriptRoot/../..").Path
+        $ModuleManifest = Join-Path $ModuleRoot 'TechHub.ActiveDirectory.psd1'
+        $HelperPath = Join-Path $PSScriptRoot 'TechHubADContractTestHelpers.ps1'
+
+        if (-not (Test-Path -LiteralPath $ModuleManifest -PathType Leaf)) {
+            throw "TechHub.ActiveDirectory module manifest not found: $ModuleManifest"
+        }
+
+        if (-not (Test-Path -LiteralPath $HelperPath -PathType Leaf)) {
+            throw "TechHubADContractTestHelpers.ps1 not found: $HelperPath"
+        }
+
+        . $HelperPath
         Remove-Module TechHub.ActiveDirectory -Force -ErrorAction SilentlyContinue
 
         Import-Module $ModuleManifest -Force -ErrorAction Stop

@@ -408,7 +408,7 @@ Describe 'Get-TechHubADPrivilegedGroup' {
         } |
             Should -Not -Throw
 
-        Assert-MockCalled `
+        Should -Invoke `
             Get-ADGroup `
             -ModuleName TechHub.ActiveDirectory `
             -ParameterFilter {

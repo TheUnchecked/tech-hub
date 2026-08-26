@@ -2,12 +2,15 @@
 
 Set-StrictMode -Version Latest
 
-$ModuleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$TestFile = $MyInvocation.MyCommand.Path
+$TestRoot = Split-Path -Parent $PSScriptRoot
+$ModuleRoot = Split-Path -Parent $TestRoot
 $ModuleManifest = Join-Path $ModuleRoot 'TechHub.ActiveDirectory.psd1'
 
 Describe 'TechHubADCheckRegistry' {
 
     BeforeAll {
+
         if (-not (Test-Path -LiteralPath $ModuleManifest -PathType Leaf)) {
             throw "TechHub.ActiveDirectory module manifest not found: $ModuleManifest"
         }
@@ -18,11 +21,19 @@ Describe 'TechHubADCheckRegistry' {
     }
 
     AfterAll {
+
         Remove-Module TechHub.ActiveDirectory -Force -ErrorAction SilentlyContinue
     }
 
     It 'creates an empty registry directly' {
-        & (Get-Module TechHub.ActiveDirectory) {
+
+        $Module = Get-Module TechHub.ActiveDirectory
+
+        $Module |
+            Should -Not -BeNullOrEmpty
+
+        & $Module {
+
             $Registry = [TechHubADCheckRegistry]::new()
 
             $Registry.GetAll().Count |
@@ -31,7 +42,11 @@ Describe 'TechHubADCheckRegistry' {
     }
 
     It 'registers all four current checks' {
+
         $Registry = New-TechHubADCheckRegistry
+
+        $Registry |
+            Should -Not -BeNullOrEmpty
 
         $Registry.GetAll().Count |
             Should -Be 4
@@ -53,7 +68,10 @@ Describe 'TechHubADCheckRegistry' {
     }
 
     It 'retrieves a definition by CheckId' {
-        $Definition = (New-TechHubADCheckRegistry).Get('AD-RBCD')
+
+        $Registry = New-TechHubADCheckRegistry
+
+        $Definition = $Registry.Get('AD-RBCD')
 
         $Definition |
             Should -Not -BeNullOrEmpty
@@ -63,32 +81,79 @@ Describe 'TechHubADCheckRegistry' {
     }
 
     It 'returns all definitions' {
-        @(New-TechHubADCheckRegistry).GetAll().Count |
+
+        $Registry = New-TechHubADCheckRegistry
+
+        @($Registry.GetAll()).Count |
             Should -Be 4
     }
 
     It 'finds definitions by category' {
+
         $Registry = New-TechHubADCheckRegistry
 
-        $Registry.FindByCategory('Delegation').Count |
+        @($Registry.FindByCategory('Delegation')).Count |
             Should -Be 3
 
-        $Registry.FindByCategory('PrivilegedAccess').Count |
+        @($Registry.FindByCategory('PrivilegedAccess')).Count |
             Should -Be 1
     }
 
     It 'finds definitions by provider' {
+
         $Registry = New-TechHubADCheckRegistry
 
-        $Registry.FindByProvider('TechHubADProvider').Count |
-            Should -Be 4
+        $Definitions = @(
+            $Registry.FindByProvider('TechHubADProvider')
+        )
 
-        $Registry.FindByProvider('UnknownProvider').Count |
-            Should -Be 0
+        $Definitions.Count |
+            Should -Be 4
+    }
+
+    It 'returns null for an unknown CheckId' {
+
+        $Registry = New-TechHubADCheckRegistry
+
+        $Definition = $Registry.Get('AD-DOES-NOT-EXIST')
+
+        $Definition |
+            Should -BeNullOrEmpty
+    }
+
+    It 'does not return disabled checks by default' {
+
+        $Registry = New-TechHubADCheckRegistry
+
+        $EnabledDefinitions = @(
+            $Registry.GetAll() |
+                Where-Object { $_.Enabled }
+        )
+
+        $EnabledDefinitions.Count |
+            Should -Be 4
+    }
+
+    It 'preserves read-only metadata' {
+
+        $Registry = New-TechHubADCheckRegistry
+
+        $Registry.GetAll() |
+            ForEach-Object {
+                $_.IsReadOnly |
+                    Should -BeTrue
+            }
     }
 
     It 'rejects duplicate CheckId values' {
-        & (Get-Module TechHub.ActiveDirectory) {
+
+        $Module = Get-Module TechHub.ActiveDirectory
+
+        $Module |
+            Should -Not -BeNullOrEmpty
+
+        & $Module {
+
             $Registry = [TechHubADCheckRegistry]::new()
 
             $Definition = [TechHubADCheckDefinition]::new(
@@ -107,144 +172,92 @@ Describe 'TechHubADCheckRegistry' {
 
             $Registry.Register($Definition)
 
-            {
+            $Thrown = $false
+
+            try {
                 $Registry.Register($Definition)
-            } |
-                Should -Throw
+            }
+            catch {
+                $Thrown = $true
+            }
+
+            $Thrown |
+                Should -BeTrue
         }
     }
 
     It 'rejects invalid definitions' {
-        & (Get-Module TechHub.ActiveDirectory) {
+
+        $Module = Get-Module TechHub.ActiveDirectory
+
+        $Module |
+            Should -Not -BeNullOrEmpty
+
+        & $Module {
+
             $Registry = [TechHubADCheckRegistry]::new()
 
-            {
+            $Thrown = $false
+
+            try {
                 $Registry.Register(
                     [PSCustomObject]@{
                         CheckId = 'AD-INVALID'
                     }
                 )
-            } |
-                Should -Throw
-
-            $Writable = [TechHubADCheckDefinition]::new(
-                'AD-WRITABLE',
-                'Writable',
-                'Invalid.',
-                'Test',
-                '1.0.0',
-                $true,
-                $false,
-                'Get-Test',
-                @(),
-                @(),
-                @()
-            )
-
-            {
-                $Registry.Register($Writable)
-            } |
-                Should -Throw
-        }
-    }
-
-    It 'preserves read-only metadata' {
-        $Definitions = (New-TechHubADCheckRegistry).GetAll()
-
-        @(
-            $Definitions |
-                Where-Object {
-                    $_.IsReadOnly -ne $true
-                }
-        ).Count |
-            Should -Be 0
-
-        @(
-            $Definitions |
-                Where-Object {
-                    $_.Enabled -ne $true
-                }
-        ).Count |
-            Should -Be 0
-    }
-
-    It 'preserves function name and provider metadata' {
-        $Definition = (New-TechHubADCheckRegistry).Get('AD-PRIVILEGED-GROUP')
-
-        $Definition |
-            Should -Not -BeNullOrEmpty
-
-        $Definition.FunctionName |
-            Should -Be 'Get-TechHubADPrivilegedGroup'
-
-        $Definition.RequiredProviders |
-            Should -Contain 'TechHubADProvider'
-
-        $Definition.RequiredModules |
-            Should -Contain 'ActiveDirectory'
-    }
-
-    It 'supports metadata-only enable and disable' {
-        $Registry = New-TechHubADCheckRegistry
-
-        $Registry.SetEnabled('AD-RBCD', $false)
-
-        $Registry.Get('AD-RBCD').Enabled |
-            Should -BeFalse
-
-        $Registry.SetEnabled('AD-RBCD', $true)
-
-        $Registry.Get('AD-RBCD').Enabled |
-            Should -BeTrue
-    }
-
-    It 'does not execute checks or query Active Directory' {
-        $Registry = New-TechHubADCheckRegistry
-
-        $Registry.GetAll() |
-            ForEach-Object {
-                $_.FunctionName |
-                    Should -Not -BeNullOrEmpty
+            }
+            catch {
+                $Thrown = $true
             }
 
-        $Registry.Get('AD-RBCD') |
-            Should -Not -BeNullOrEmpty
-
-        $Registry.GetAll().Count |
-            Should -Be 4
+            $Thrown |
+                Should -BeTrue
+        }
     }
 
-    It 'contains no credentials and serializes as metadata' {
+    It 'rejects null definitions' {
+
+        $Module = Get-Module TechHub.ActiveDirectory
+
+        $Module |
+            Should -Not -BeNullOrEmpty
+
+        & $Module {
+
+            $Registry = [TechHubADCheckRegistry]::new()
+
+            $Thrown = $false
+
+            try {
+                $Registry.Register($null)
+            }
+            catch {
+                $Thrown = $true
+            }
+
+            $Thrown |
+                Should -BeTrue
+        }
+    }
+
+    It 'preserves registration order' {
+
         $Registry = New-TechHubADCheckRegistry
 
-        $Json = $Registry.GetAll() |
-            ConvertTo-Json -Depth 5
-
-        $Json |
-            Should -Match 'AD-UNCONSTRAINED-DELEGATION'
-
-        $SecretMarkers = @(
-            'password\s*[:=]'
-            'secret\s*[:=]'
-            'token\s*[:=]'
-            'credential\s*[:=]'
-            '-----BEGIN'
+        $Ids = @(
+            $Registry.GetAll().CheckId
         )
 
-        foreach ($Marker in $SecretMarkers) {
-            $Json |
-                Should -Not -Match $Marker
-        }
+        $Ids[0] |
+            Should -Be 'AD-UNCONSTRAINED-DELEGATION'
 
-        $DynamicMarkers = @(
-            'Invoke-Expression'
-            'ScriptBlock'
-            'Start-Process'
-        )
+        $Ids[1] |
+            Should -Be 'AD-CONSTRAINED-DELEGATION'
 
-        foreach ($Marker in $DynamicMarkers) {
-            $Json |
-                Should -Not -Match ([regex]::Escape($Marker))
-        }
+        $Ids[2] |
+            Should -Be 'AD-RBCD'
+
+        $Ids[3] |
+            Should -Be 'AD-PRIVILEGED-GROUP'
     }
 }

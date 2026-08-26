@@ -81,7 +81,7 @@ Describe 'Get-TechHubADRemoteWindowsFeatures' {
             -Credential $credential |
             Out-Null
 
-        Assert-MockCalled Invoke-Command -Times 1 -Exactly
+        Should -Invoke Invoke-Command -Times 1 -Exactly
     }
 
     It 'handles remote failure' {

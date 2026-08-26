@@ -77,7 +77,7 @@ Describe 'Get-TechHubADRemoteOSInfo' {
             -UseSSL |
             Out-Null
 
-        Assert-MockCalled Invoke-Command -Times 1 -Exactly
+        Should -Invoke Invoke-Command -Times 1 -Exactly
     }
 
     It 'handles a remote query failure' {

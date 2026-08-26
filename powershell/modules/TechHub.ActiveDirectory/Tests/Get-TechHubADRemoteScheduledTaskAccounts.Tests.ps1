@@ -6,6 +6,12 @@ Describe 'Get-TechHubADRemoteScheduledTaskAccounts' {
 
     BeforeAll {
         . "$PSScriptRoot\..\Public\Get-TechHubADRemoteScheduledTaskAccounts.ps1"
+
+        if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
+            function global:New-CimSession {
+                throw 'Synthetic CIM session'
+            }
+        }
     }
 
     It 'has the expected read-only contract' {
@@ -42,9 +48,11 @@ Describe 'Get-TechHubADRemoteScheduledTaskAccounts' {
             Get-TechHubADRemoteScheduledTaskAccounts `
                 -ErrorVariable errors `
                 -ErrorAction SilentlyContinue
-        ) | Should -HaveCount 0
+        ) |
+            Should -HaveCount 0
 
-        $errors.Count | Should -BeGreaterThan 0
+        $errors.Count |
+            Should -BeGreaterThan 0
     }
 
     It 'handles remote query failure' {
@@ -66,8 +74,11 @@ Describe 'Get-TechHubADRemoteScheduledTaskAccounts' {
                 -ErrorAction SilentlyContinue
         )
 
-        $result.Count | Should -Be 0
-        $errors.Count | Should -BeGreaterThan 0
+        $result.Count |
+            Should -Be 0
+
+        $errors.Count |
+            Should -BeGreaterThan 0
     }
 
     It 'contains CIM and COM collection paths' {

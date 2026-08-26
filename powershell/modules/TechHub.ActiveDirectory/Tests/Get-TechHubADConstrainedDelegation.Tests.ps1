@@ -176,7 +176,7 @@ Describe 'Get-TechHubADConstrainedDelegation provider migration' {
     It 'creates a provider when invoked without one' {
         Mock New-TechHubADProvider -ModuleName TechHub.ActiveDirectory -MockWith { New-TestConstrainedProvider -Objects @($Script:User) }
         @(Get-TechHubADConstrainedDelegation -Server 'dc01.example.test').Count | Should -Be 1
-        Assert-MockCalled New-TechHubADProvider -ModuleName TechHub.ActiveDirectory -ParameterFilter { $Server -eq 'dc01.example.test' } -Times 1
+        Should -Invoke New-TechHubADProvider -ModuleName TechHub.ActiveDirectory -ParameterFilter { $Server -eq 'dc01.example.test' } -Times 1
     }
 
     It 'returns the complete Finding Contract v1 and remains read-only' {
