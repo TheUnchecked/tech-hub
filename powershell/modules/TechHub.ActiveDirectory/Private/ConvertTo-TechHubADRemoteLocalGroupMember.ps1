@@ -5,7 +5,8 @@ Set-StrictMode -Version Latest
 function ConvertTo-TechHubADRemoteLocalGroupMember {
 
     [CmdletBinding()]
-    param(
+    param (
+
         [Parameter(Mandatory)]
         [object]$InputObject
     )
@@ -15,39 +16,50 @@ function ConvertTo-TechHubADRemoteLocalGroupMember {
     # ============================================================
 
     $ComputerName = [string]$InputObject.ComputerName
-    $GroupName    = [string]$InputObject.GroupName
+    $GroupName = [string]$InputObject.GroupName
+
+    # ============================================================
+    # GROUP PROPERTIES
+    # ============================================================
 
     $TargetType = $null
+
     if ($InputObject.PSObject.Properties['TargetType']) {
         $TargetType = [string]$InputObject.TargetType
     }
 
     $CollectionMethod = $null
+
     if ($InputObject.PSObject.Properties['CollectionMethod']) {
         $CollectionMethod = [string]$InputObject.CollectionMethod
     }
 
     $Transport = $null
+
     if ($InputObject.PSObject.Properties['Transport']) {
         $Transport = [string]$InputObject.Transport
     }
 
     $Status = $null
+
     if ($InputObject.PSObject.Properties['Status']) {
         $Status = [string]$InputObject.Status
     }
 
     $DataAvailability = $null
+
     if ($InputObject.PSObject.Properties['DataAvailability']) {
         $DataAvailability = [string]$InputObject.DataAvailability
     }
 
     $ErrorType = $null
+
     if ($InputObject.PSObject.Properties['ErrorType']) {
         $ErrorType = [string]$InputObject.ErrorType
     }
 
     $ErrorMessage = $null
+
     if ($InputObject.PSObject.Properties['ErrorMessage']) {
         $ErrorMessage = [string]$InputObject.ErrorMessage
     }
@@ -66,7 +78,7 @@ function ConvertTo-TechHubADRemoteLocalGroupMember {
     }
 
     # ============================================================
-    # ONE OUTPUT OBJECT PER MEMBER
+    # ONE RESULT PER MEMBER
     # ============================================================
 
     foreach ($MemberObject in $GroupMembers) {
@@ -75,19 +87,23 @@ function ConvertTo-TechHubADRemoteLocalGroupMember {
             continue
         }
 
-        # --------------------------------------------------------
+        # ========================================================
         # MEMBER
-        # --------------------------------------------------------
+        # ========================================================
 
         $Member = $null
 
-        if ($MemberObject.PSObject.Properties['Member']) {
+        if (
+            $MemberObject.PSObject.Properties['Member'] -and
+            $null -ne $MemberObject.Member
+        ) {
+
             $Member = [string]$MemberObject.Member
         }
         else {
 
             $Domain = $null
-            $Name   = $null
+            $Name = $null
 
             if ($MemberObject.PSObject.Properties['Domain']) {
                 $Domain = [string]$MemberObject.Domain
@@ -101,11 +117,13 @@ function ConvertTo-TechHubADRemoteLocalGroupMember {
                 -not [string]::IsNullOrWhiteSpace($Domain) -and
                 -not [string]::IsNullOrWhiteSpace($Name)
             ) {
+
                 $Member = '{0}\{1}' -f $Domain, $Name
             }
             elseif (
                 -not [string]::IsNullOrWhiteSpace($Name)
             ) {
+
                 $Member = $Name
             }
         }
@@ -114,33 +132,40 @@ function ConvertTo-TechHubADRemoteLocalGroupMember {
             continue
         }
 
-        # --------------------------------------------------------
+        # ========================================================
         # MEMBER ATTRIBUTES
-        # --------------------------------------------------------
+        # ========================================================
 
         $Domain = $null
+
         if ($MemberObject.PSObject.Properties['Domain']) {
             $Domain = [string]$MemberObject.Domain
         }
 
         $Name = $null
+
         if ($MemberObject.PSObject.Properties['Name']) {
             $Name = [string]$MemberObject.Name
         }
 
         $SID = $null
+
         if ($MemberObject.PSObject.Properties['SID']) {
             $SID = [string]$MemberObject.SID
         }
 
         $LocalAccount = $false
-        if ($MemberObject.PSObject.Properties['LocalAccount']) {
-            if ($null -ne $MemberObject.LocalAccount) {
-                $LocalAccount = [bool]$MemberObject.LocalAccount
-            }
+
+        if (
+            $MemberObject.PSObject.Properties['LocalAccount'] -and
+            $null -ne $MemberObject.LocalAccount
+        ) {
+
+            $LocalAccount = [bool]$MemberObject.LocalAccount
         }
 
         $AccountType = $null
+
         if ($MemberObject.PSObject.Properties['AccountType']) {
             $AccountType = $MemberObject.AccountType
         }
@@ -163,25 +188,39 @@ function ConvertTo-TechHubADRemoteLocalGroupMember {
 
         [PSCustomObject][ordered]@{
 
-            ComputerName     = $ComputerName
-            TargetType       = $TargetType
-            GroupName        = $GroupName
-            Member           = $Member
-            Domain           = $Domain
-            Name             = $Name
-            SID              = $SID
-            LocalAccount     = $LocalAccount
-            AccountType      = $AccountType
-            MemberType       = $MemberType
+            ComputerName = $ComputerName
+
+            TargetType = $TargetType
+
+            GroupName = $GroupName
+
+            Member = $Member
+
+            Domain = $Domain
+
+            Name = $Name
+
+            SID = $SID
+
+            LocalAccount = $LocalAccount
+
+            AccountType = $AccountType
+
+            MemberType = $MemberType
 
             CollectionMethod = $CollectionMethod
-            Transport        = $Transport
-            Status           = $Status
-            DataAvailability = $DataAvailability
-            ErrorType        = $ErrorType
-            ErrorMessage     = $ErrorMessage
 
-            IsReadOnly       = $true
+            Transport = $Transport
+
+            Status = $Status
+
+            DataAvailability = $DataAvailability
+
+            ErrorType = $ErrorType
+
+            ErrorMessage = $ErrorMessage
+
+            IsReadOnly = $true
         }
     }
 }

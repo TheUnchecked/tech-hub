@@ -37,37 +37,22 @@ if (Test-Path -LiteralPath $ClassesPath) {
 # 2. PRIVATE FUNCTIONS
 # ============================================================
 
-$PrivatePath = Join-Path `
-    $ModuleRoot `
-    'Private'
+$PrivatePath = Join-Path $ModuleRoot 'Private'
 
-if (Test-Path -LiteralPath $PrivatePath) {
+$PrivateFiles = @(
+    Get-ChildItem `
+        -LiteralPath $PrivatePath `
+        -Filter '*.ps1' `
+        -File `
+        -ErrorAction Stop |
+    Sort-Object Name
+)
 
-    $PrivateFunctions = @(
-        Get-ChildItem `
-            -LiteralPath $PrivatePath `
-            -Filter '*.ps1' `
-            -File `
-            -ErrorAction Stop |
-            Sort-Object Name
-    )
+foreach ($PrivateFile in $PrivateFiles) {
 
-    foreach ($PrivateFunction in $PrivateFunctions) {
+    Write-Verbose "Loading private function: $($PrivateFile.Name)"
 
-        try {
-
-            . $PrivateFunction.FullName
-
-        }
-        catch {
-
-            throw (
-                'Failed to load private function file [{0}]: {1}' -f
-                $PrivateFunction.Name,
-                $_.Exception.Message
-            )
-        }
-    }
+    . $PrivateFile.FullName
 }
 
 # ============================================================

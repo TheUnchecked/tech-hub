@@ -34,6 +34,7 @@
     'Get-AssessmentADRemoteScheduledTaskAccounts'
     'Get-AssessmentADRemoteOSInfo'
     'Get-AssessmentADRemoteWindowsFeatures'
+    'Get-AssessmentADRemoteLocalGroups'
 
     # ------------------------------------------------------------
     # Remote assessment orchestration
