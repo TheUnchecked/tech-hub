@@ -12,52 +12,58 @@
     )
 
     FunctionsToExport = @(
-        # ------------------------------------------------------------
-        # Active Directory checks
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Active Directory checks
+    # ------------------------------------------------------------
 
-        'Get-AssessmentADInventory'
-        'Get-AssessmentADUnconstrainedDelegation'
-        'Get-AssessmentADConstrainedDelegation'
-        'Get-AssessmentADRBCD'
-        'Get-AssessmentADPrivilegedGroup'
-        'Get-AssessmentADServiceAccounts'
-        'Get-AssessmentADRemoteTargets'
+    'Get-AssessmentADInventory'
+    'Get-AssessmentADUnconstrainedDelegation'
+    'Get-AssessmentADConstrainedDelegation'
+    'Get-AssessmentADRBCD'
+    'Get-AssessmentADPrivilegedGroup'
+    'Get-AssessmentADServiceAccounts'
+    'Get-AssessmentADRemoteTargets'
 
-        # ------------------------------------------------------------
-        # Remote assessment collectors
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Remote assessment collectors
+    # ------------------------------------------------------------
 
-        'Get-AssessmentADRemoteIISAppPoolAccounts'
-        'Get-AssessmentADRemoteLocalGroupMembers'
-        'Get-AssessmentADRemoteNetworkShareACLs'
-        'Get-AssessmentADRemoteScheduledTaskAccounts'
-        'Get-AssessmentADRemoteOSInfo'
-        'Get-AssessmentADRemoteWindowsFeatures'
+    'Get-AssessmentADRemoteIISAppPoolAccounts'
+    'Get-AssessmentADRemoteLocalGroupMembers'
+    'Get-AssessmentADRemoteNetworkShareACLs'
+    'Get-AssessmentADRemoteScheduledTaskAccounts'
+    'Get-AssessmentADRemoteOSInfo'
+    'Get-AssessmentADRemoteWindowsFeatures'
 
-        # ------------------------------------------------------------
-        # Assessment engine
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Remote assessment orchestration
+    # ------------------------------------------------------------
 
-        'New-AssessmentADAssessmentResult'
-        'New-AssessmentADCheckRegistry'
-        'Invoke-AssessmentADAssessment'
-        'Invoke-AssessmentADRemoteAssessment'
+    'Invoke-AssessmentADRemoteLocalGroups'
 
-        # ------------------------------------------------------------
-        # Provider
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Assessment engine
+    # ------------------------------------------------------------
 
-        'New-AssessmentADProvider'
+    'New-AssessmentADAssessmentResult'
+    'New-AssessmentADCheckRegistry'
+    'Invoke-AssessmentADAssessment'
+    'Invoke-AssessmentADRemoteAssessment'
 
-        # ------------------------------------------------------------
-        # Exporters
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Provider
+    # ------------------------------------------------------------
 
-        'Export-AssessmentADAssessmentJson'
-        'Export-AssessmentADAssessmentCsv'
-        'Export-AssessmentADAssessmentHtml'
-    )
+    'New-AssessmentADProvider'
+
+    # ------------------------------------------------------------
+    # Exporters
+    # ------------------------------------------------------------
+
+    'Export-AssessmentADAssessmentJson'
+    'Export-AssessmentADAssessmentCsv'
+    'Export-AssessmentADAssessmentHtml'
+)
 
     CmdletsToExport = @()
 

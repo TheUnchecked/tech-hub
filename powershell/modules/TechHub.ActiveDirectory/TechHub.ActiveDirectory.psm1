@@ -1,4 +1,4 @@
-#requires -Version 5.1
+#Requires -Version 5.1
 
 Set-StrictMode -Version Latest
 
@@ -12,38 +12,62 @@ $ModuleRoot = $PSScriptRoot
 # 1. CLASSES
 # ============================================================
 
-$ClassFiles = @(
-    Get-ChildItem `
-        -LiteralPath (Join-Path $ModuleRoot 'Classes') `
-        -Filter '*.ps1' `
-        -File `
-        -ErrorAction SilentlyContinue |
-        Sort-Object Name
-)
+$ClassesPath = Join-Path `
+    $ModuleRoot `
+    'Classes'
 
-foreach ($ClassFile in $ClassFiles) {
+if (Test-Path -LiteralPath $ClassesPath) {
 
-    . $ClassFile.FullName
+    $ClassFiles = @(
+        Get-ChildItem `
+            -LiteralPath $ClassesPath `
+            -Filter '*.ps1' `
+            -File `
+            -ErrorAction Stop |
+            Sort-Object Name
+    )
+
+    foreach ($ClassFile in $ClassFiles) {
+
+        . $ClassFile.FullName
+    }
 }
 
 # ============================================================
 # 2. PRIVATE FUNCTIONS
 # ============================================================
 
-$PrivatePath = Join-Path $ModuleRoot 'Private'
+$PrivatePath = Join-Path `
+    $ModuleRoot `
+    'Private'
 
-$PrivateFunctions = @(
-    Get-ChildItem `
-        -LiteralPath $PrivatePath `
-        -Filter '*.ps1' `
-        -File `
-        -ErrorAction SilentlyContinue |
-        Sort-Object Name
-)
+if (Test-Path -LiteralPath $PrivatePath) {
 
-foreach ($PrivateFunction in $PrivateFunctions) {
+    $PrivateFunctions = @(
+        Get-ChildItem `
+            -LiteralPath $PrivatePath `
+            -Filter '*.ps1' `
+            -File `
+            -ErrorAction Stop |
+            Sort-Object Name
+    )
 
-    . $PrivateFunction.FullName
+    foreach ($PrivateFunction in $PrivateFunctions) {
+
+        try {
+
+            . $PrivateFunction.FullName
+
+        }
+        catch {
+
+            throw (
+                'Failed to load private function file [{0}]: {1}' -f
+                $PrivateFunction.Name,
+                $_.Exception.Message
+            )
+        }
+    }
 }
 
 # ============================================================
@@ -54,38 +78,74 @@ $ProviderPath = Join-Path `
     $ModuleRoot `
     'Providers\ActiveDirectory'
 
-$ProviderFiles = @(
-    Get-ChildItem `
-        -LiteralPath $ProviderPath `
-        -Filter '*.ps1' `
-        -File `
-        -ErrorAction SilentlyContinue |
-        Sort-Object Name
-)
+if (Test-Path -LiteralPath $ProviderPath) {
 
-foreach ($ProviderFile in $ProviderFiles) {
+    $ProviderFiles = @(
+        Get-ChildItem `
+            -LiteralPath $ProviderPath `
+            -Filter '*.ps1' `
+            -File `
+            -ErrorAction Stop |
+            Sort-Object Name
+    )
 
-    . $ProviderFile.FullName
+    foreach ($ProviderFile in $ProviderFiles) {
+
+        try {
+
+            . $ProviderFile.FullName
+
+        }
+        catch {
+
+            throw (
+                'Failed to load provider file [{0}]: {1}' -f
+                $ProviderFile.Name,
+                $_.Exception.Message
+            )
+        }
+    }
 }
 
 # ============================================================
 # 4. PUBLIC FUNCTIONS
 # ============================================================
 
-$PublicPath = Join-Path $ModuleRoot 'Public'
+$PublicPath = Join-Path `
+    $ModuleRoot `
+    'Public'
 
-$PublicFunctions = @(
-    Get-ChildItem `
-        -LiteralPath $PublicPath `
-        -Filter '*.ps1' `
-        -File `
-        -ErrorAction SilentlyContinue |
-        Sort-Object Name
-)
+if (Test-Path -LiteralPath $PublicPath) {
 
-foreach ($PublicFunction in $PublicFunctions) {
+    $PublicFunctions = @(
+        Get-ChildItem `
+            -LiteralPath $PublicPath `
+            -Filter '*.ps1' `
+            -File `
+            -ErrorAction Stop |
+            Sort-Object Name
+    )
 
-    . $PublicFunction.FullName
+    foreach ($PublicFunction in $PublicFunctions) {
+
+        try {
+
+            . $PublicFunction.FullName
+
+        }
+        catch {
+
+            throw (
+                'Failed to load public function file [{0}]: {1}' -f
+                $PublicFunction.Name,
+                $_.Exception.Message
+            )
+        }
+    }
+}
+else {
+
+    $PublicFunctions = @()
 }
 
 # ============================================================

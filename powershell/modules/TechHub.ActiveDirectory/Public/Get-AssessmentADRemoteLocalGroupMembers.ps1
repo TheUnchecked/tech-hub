@@ -18,7 +18,19 @@ function Get-AssessmentADRemoteLocalGroupMembers {
             1. WSMan
             2. DCOM
 
-        The collector itself remains transport-agnostic.
+        The collector preserves the native Win32_Account identity
+        information so that downstream classification can reliably
+        distinguish:
+
+            - Local accounts
+            - Domain principals
+            - Built-in principals
+            - Well-known principals
+
+        IMPORTANT:
+        The collector does NOT classify the member.
+
+        It only collects and normalizes the identity data.
 
     .PARAMETER ComputerName
         One or more remote Windows computers.
@@ -31,6 +43,7 @@ function Get-AssessmentADRemoteLocalGroupMembers {
         GroupName
         GroupMembers
         CollectionMethod
+        Transport
         Status
         DataAvailability
         ErrorType
@@ -63,16 +76,27 @@ function Get-AssessmentADRemoteLocalGroupMembers {
 
     process {
 
-        Write-Verbose "[$ComputerName] Collecting local group memberships."
+        Write-Verbose `
+            "[$ComputerName] Collecting local group memberships."
 
         $queryResult = $null
 
         try {
 
+            # ========================================================
+            # REMOTE CIM QUERY
+            # ========================================================
+
             $transportParams = @{
                 ComputerName = $ComputerName
-                ScriptBlock  = {
+
+                ScriptBlock = {
+
                     param($Session)
+
+                    # ====================================================
+                    # LOCAL GROUPS
+                    # ====================================================
 
                     $groups = Get-CimInstance `
                         -CimSession $Session `
@@ -82,7 +106,13 @@ function Get-AssessmentADRemoteLocalGroupMembers {
 
                     $results = foreach ($group in @($groups)) {
 
-                        $memberNames = @()
+                        # ------------------------------------------------
+                        # Member collection
+                        # ------------------------------------------------
+
+                        $memberObjects = @()
+
+                        $memberStatus = 'Available'
 
                         try {
 
@@ -93,39 +123,180 @@ function Get-AssessmentADRemoteLocalGroupMembers {
                                 -ResultClassName Win32_Account `
                                 -ErrorAction Stop
 
-                            $memberNames = @(
+                            $memberObjects = @(
                                 $members |
                                     Sort-Object Domain, Name |
                                     ForEach-Object {
 
+                                        $domain = $null
+                                        $name = $null
+                                        $sid = $null
+                                        $localAccount = $null
+                                        $accountType = $null
+
+                                        # ====================================
+                                        # DOMAIN
+                                        # ====================================
+
+                                        if (
+                                            $_.PSObject.Properties['Domain'] -and
+                                            $null -ne $_.Domain
+                                        ) {
+
+                                            $domain = [string]$_.Domain
+                                        }
+
+                                        # ====================================
+                                        # NAME
+                                        # ====================================
+
+                                        if (
+                                            $_.PSObject.Properties['Name'] -and
+                                            $null -ne $_.Name
+                                        ) {
+
+                                            $name = [string]$_.Name
+                                        }
+
+                                        # ====================================
+                                        # SID
+                                        # ====================================
+
+                                        if (
+                                            $_.PSObject.Properties['SID'] -and
+                                            $null -ne $_.SID
+                                        ) {
+
+                                            $sid = [string]$_.SID
+                                        }
+
+                                        # ====================================
+                                        # LOCAL ACCOUNT
+                                        #
+                                        # Win32_Account exposes:
+                                        #
+                                        # LocalAccount = TRUE/FALSE
+                                        #
+                                        # This is much more reliable than
+                                        # guessing from DOMAIN\NAME.
+                                        # ====================================
+
+                                        if (
+                                            $_.PSObject.Properties['LocalAccount'] -and
+                                            $null -ne $_.LocalAccount
+                                        ) {
+
+                                            try {
+                                                $localAccount =
+                                                    [bool]$_.LocalAccount
+                                            }
+                                            catch {
+                                                $localAccount = $null
+                                            }
+                                        }
+
+                                        # ====================================
+                                        # ACCOUNT TYPE
+                                        #
+                                        # Win32_Account.Type can be useful
+                                        # for additional downstream logic.
+                                        # ====================================
+
+                                        if (
+                                            $_.PSObject.Properties['AccountType'] -and
+                                            $null -ne $_.AccountType
+                                        ) {
+
+                                            try {
+                                                $accountType =
+                                                    [int]$_.AccountType
+                                            }
+                                            catch {
+                                                $accountType = $null
+                                            }
+                                        }
+                                        elseif (
+                                            $_.PSObject.Properties['Type'] -and
+                                            $null -ne $_.Type
+                                        ) {
+
+                                            try {
+                                                $accountType =
+                                                    [int]$_.Type
+                                            }
+                                            catch {
+                                                $accountType = $null
+                                            }
+                                        }
+
+                                        # ====================================
+                                        # NORMALIZED DISPLAY NAME
+                                        # ====================================
+
+                                        $displayName = $null
+
                                         if (
                                             -not [string]::IsNullOrWhiteSpace(
-                                                [string]$_.Domain
+                                                $domain
                                             ) -and
                                             -not [string]::IsNullOrWhiteSpace(
-                                                [string]$_.Name
+                                                $name
                                             )
                                         ) {
-                                            '{0}\{1}' -f `
-                                                $_.Domain,
-                                                $_.Name
+
+                                            $displayName = '{0}\{1}' -f `
+                                                $domain,
+                                                $name
                                         }
                                         elseif (
                                             -not [string]::IsNullOrWhiteSpace(
-                                                [string]$_.Name
+                                                $name
                                             )
                                         ) {
-                                            [string]$_.Name
+
+                                            $displayName = $name
+                                        }
+
+                                        # ====================================
+                                        # RETURN NORMALIZED MEMBER
+                                        # ====================================
+
+                                        [PSCustomObject][ordered]@{
+
+                                            # Original Windows identity
+                                            Member = $displayName
+
+                                            # Separate identity components
+                                            Domain = $domain
+
+                                            Name = $name
+
+                                            # Security identifier
+                                            SID = $sid
+
+                                            # Native Win32 classification
+                                            LocalAccount = $localAccount
+
+                                            # Native account type when available
+                                            AccountType = $accountType
                                         }
                                     }
                             )
 
-                            $memberStatus = 'Available'
+                            if ($null -eq $memberObjects) {
+                                $memberObjects = @()
+                            }
                         }
                         catch {
 
                             $memberStatus = 'Partial'
+
+                            $memberObjects = @()
                         }
+
+                        # ====================================================
+                        # GROUP RESULT
+                        # ====================================================
 
                         [PSCustomObject][ordered]@{
 
@@ -133,7 +304,7 @@ function Get-AssessmentADRemoteLocalGroupMembers {
 
                             GroupName = [string]$group.Name
 
-                            GroupMembers = $memberNames
+                            GroupMembers = @($memberObjects)
 
                             MemberStatus = $memberStatus
                         }
@@ -147,25 +318,42 @@ function Get-AssessmentADRemoteLocalGroupMembers {
                 $transportParams.Credential = $Credential
             }
 
-            $queryResult = Invoke-AssessmentADRemoteCimQuery @transportParams
+            $queryResult =
+                Invoke-AssessmentADRemoteCimQuery @transportParams
         }
         catch {
 
             $queryResult = [PSCustomObject][ordered]@{
-                ComputerName     = $ComputerName
-                Transport        = 'None'
-                Status           = 'NotAvailable'
-                DataAvailability = 'NotAvailable'
-                Data             = @()
-                ErrorType        = 'RemoteQueryError'
-                ErrorMessage     = $_.Exception.Message
-                IsReadOnly       = $true
+
+                ComputerName =
+                    $ComputerName
+
+                Transport =
+                    'None'
+
+                Status =
+                    'NotAvailable'
+
+                DataAvailability =
+                    'NotAvailable'
+
+                Data =
+                    @()
+
+                ErrorType =
+                    'RemoteQueryError'
+
+                ErrorMessage =
+                    $_.Exception.Message
+
+                IsReadOnly =
+                    $true
             }
         }
 
-        # ------------------------------------------------------------
-        # Transport failure
-        # ------------------------------------------------------------
+        # ============================================================
+        # TRANSPORT FAILURE
+        # ============================================================
 
         if (
             $null -eq $queryResult -or
@@ -174,39 +362,58 @@ function Get-AssessmentADRemoteLocalGroupMembers {
 
             [PSCustomObject][ordered]@{
 
-                ComputerName     = $ComputerName
-                GroupName        = $null
-                GroupMembers     = @()
-                CollectionMethod = 'WMI'
-                Transport        = if ($null -ne $queryResult) {
-                    $queryResult.Transport
-                }
-                else {
-                    'None'
-                }
-                Status           = 'NotAvailable'
-                DataAvailability = 'NotAvailable'
-                ErrorType        = if ($null -ne $queryResult) {
-                    $queryResult.ErrorType
-                }
-                else {
-                    'RemoteQueryError'
-                }
-                ErrorMessage     = if ($null -ne $queryResult) {
-                    $queryResult.ErrorMessage
-                }
-                else {
-                    'Remote query failed.'
-                }
-                IsReadOnly       = $true
+                ComputerName =
+                    $ComputerName
+
+                GroupName =
+                    $null
+
+                GroupMembers =
+                    @()
+
+                CollectionMethod =
+                    'WMI'
+
+                Transport =
+                    if ($null -ne $queryResult) {
+                        [string]$queryResult.Transport
+                    }
+                    else {
+                        'None'
+                    }
+
+                Status =
+                    'NotAvailable'
+
+                DataAvailability =
+                    'NotAvailable'
+
+                ErrorType =
+                    if ($null -ne $queryResult) {
+                        $queryResult.ErrorType
+                    }
+                    else {
+                        'RemoteQueryError'
+                    }
+
+                ErrorMessage =
+                    if ($null -ne $queryResult) {
+                        $queryResult.ErrorMessage
+                    }
+                    else {
+                        'Remote query failed.'
+                    }
+
+                IsReadOnly =
+                    $true
             }
 
             return
         }
 
-        # ------------------------------------------------------------
-        # Normalize results
-        # ------------------------------------------------------------
+        # ============================================================
+        # NORMALIZE RESULTS
+        # ============================================================
 
         foreach ($item in @($queryResult.Data)) {
 
@@ -220,7 +427,9 @@ function Get-AssessmentADRemoteLocalGroupMembers {
                 $item.PSObject.Properties['GroupMembers'] -and
                 $null -ne $item.GroupMembers
             ) {
-                $members = @($item.GroupMembers)
+
+                $members =
+                    @($item.GroupMembers)
             }
 
             $memberStatus = 'Available'
@@ -229,39 +438,51 @@ function Get-AssessmentADRemoteLocalGroupMembers {
                 $item.PSObject.Properties['MemberStatus'] -and
                 $item.MemberStatus
             ) {
-                $memberStatus = [string]$item.MemberStatus
+
+                $memberStatus =
+                    [string]$item.MemberStatus
             }
 
             [PSCustomObject][ordered]@{
 
                 # IMPORTANT:
-                # Always use the requested target, not the local
-                # PowerShell session computer name.
+                # Always use the requested target.
+                # Never use the local PowerShell session computer.
 
-                ComputerName = $ComputerName
+                ComputerName =
+                    $ComputerName
 
-                GroupName = [string]$item.GroupName
+                GroupName =
+                    [string]$item.GroupName
 
-                GroupMembers = $members
+                GroupMembers =
+                    $members
 
-                CollectionMethod = 'WMI'
+                CollectionMethod =
+                    'WMI'
 
-                Transport = [string]$queryResult.Transport
+                Transport =
+                    [string]$queryResult.Transport
 
-                Status = if ($memberStatus -eq 'Partial') {
-                    'Partial'
-                }
-                else {
+                Status =
+                    if ($memberStatus -eq 'Partial') {
+                        'Partial'
+                    }
+                    else {
+                        'Available'
+                    }
+
+                DataAvailability =
                     'Available'
-                }
 
-                DataAvailability = 'Available'
+                ErrorType =
+                    $null
 
-                ErrorType = $null
+                ErrorMessage =
+                    $null
 
-                ErrorMessage = $null
-
-                IsReadOnly = $true
+                IsReadOnly =
+                    $true
             }
         }
     }
