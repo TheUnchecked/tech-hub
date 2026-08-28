@@ -24,7 +24,10 @@ function Invoke-AssessmentADAssessment {
         [string]$Server,
 
         [Parameter()]
-        [string]$SearchBase
+        [string]$SearchBase,
+
+        [Parameter()]
+        [string]$ComputerName
     )
 
     # ============================================================
@@ -43,15 +46,9 @@ function Invoke-AssessmentADAssessment {
     $Assessment = New-AssessmentADAssessmentResult
 
     $Assessment.Metadata = [PSCustomObject][ordered]@{
-
-        Engine =
-            'TechHub.ActiveDirectory'
-
-        EngineVersion =
-            '1.0.0'
-
-        CheckResults =
-            New-Object System.Collections.ArrayList
+        Engine        = 'TechHub.ActiveDirectory'
+        EngineVersion = '1.0.0'
+        CheckResults  = New-Object System.Collections.ArrayList
     }
 
     $Assessment.Summary |
@@ -347,17 +344,7 @@ function Invoke-AssessmentADAssessment {
             }
 
             # ----------------------------------------------------
-            # TARGET SERVER
-            #
-            # The assessment engine exposes the target as
-            # -Server.
-            #
-            # Individual checks may expose either:
-            #
-            # -Server
-            # -ComputerName
-            #
-            # Map the engine target accordingly.
+            # SERVER
             # ----------------------------------------------------
 
             if (
@@ -375,10 +362,35 @@ function Invoke-AssessmentADAssessment {
                     $Parameters.Server =
                         $Server
                 }
+            }
+
+            # ----------------------------------------------------
+            # COMPUTER NAME
+            #
+            # Priority:
+            #
+            # 1. Explicit -ComputerName
+            # 2. -Server mapped to ComputerName
+            # ----------------------------------------------------
+
+            if (
+                $Command.Parameters.ContainsKey(
+                    'ComputerName'
+                )
+            ) {
 
                 if (
-                    $Command.Parameters.ContainsKey(
-                        'ComputerName'
+                    -not [string]::IsNullOrWhiteSpace(
+                        $ComputerName
+                    )
+                ) {
+
+                    $Parameters.ComputerName =
+                        $ComputerName
+                }
+                elseif (
+                    -not [string]::IsNullOrWhiteSpace(
+                        $Server
                     )
                 ) {
 
@@ -415,7 +427,7 @@ function Invoke-AssessmentADAssessment {
                 )
 
             # ====================================================
-            # EXECUTE FUNCTION
+            # EXECUTE REGISTERED FUNCTION
             # ====================================================
 
             $Outputs = @(
@@ -477,7 +489,7 @@ function Invoke-AssessmentADAssessment {
             }
             elseif (
                 $_.Exception.Message -match
-                '(?i)server|unreachable|timeout'
+                '(?i)server|unreachable|timeout|RPC'
             ) {
 
                 $ErrorType =
