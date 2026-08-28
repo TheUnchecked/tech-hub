@@ -17,7 +17,10 @@ function Resolve-TechHubADGroupMembership {
         [hashtable]$VisitedGroups = @{},
 
         [Parameter()]
-        [string]$Server
+        [string]$Server,
+
+        [Parameter()]
+        [hashtable]$EmittedRelationships = @{}
     )
 
     # ============================================================
@@ -239,6 +242,14 @@ function Resolve-TechHubADGroupMembership {
         $AdminCount = $null
         $PasswordNeverExpires = $null
 
+        $MembershipType = 'Direct'
+
+        if ($MembershipPath.Count -gt 0) {
+            $MembershipType = 'Indirect'
+        }
+
+        $EmitDirectMember = $true
+
         # --------------------------------------------------------
         # READ BASE PROPERTIES
         # --------------------------------------------------------
@@ -289,8 +300,21 @@ function Resolve-TechHubADGroupMembership {
             $Member.PSObject.Properties['objectClass']
         ) {
 
-            $ObjectClass = `
-                [string]$Member.objectClass
+            $MemberObjectClasses = @(
+                $Member.PSObject.Properties['objectClass'].Value
+            ) | ForEach-Object {
+                [string]$_
+            }
+
+            if ($MemberObjectClasses -contains 'user') {
+                $ObjectClass = 'User'
+            }
+            elseif ($MemberObjectClasses -contains 'computer') {
+                $ObjectClass = 'Computer'
+            }
+            elseif ($MemberObjectClasses -contains 'group') {
+                $ObjectClass = 'Group'
+            }
         }
 
         if (
@@ -319,6 +343,17 @@ function Resolve-TechHubADGroupMembership {
 
             continue
         }
+
+        $RelationshipKey = @(
+            $CurrentMembershipPath
+            $DistinguishedName
+        ) -join '|'
+
+        if ($EmittedRelationships.ContainsKey($RelationshipKey)) {
+            continue
+        }
+
+        $EmittedRelationships[$RelationshipKey] = $true
 
         try {
 
@@ -397,7 +432,8 @@ function Resolve-TechHubADGroupMembership {
                             -GroupIdentity $DistinguishedName `
                             -MembershipPath $CurrentMembershipPath `
                             -VisitedGroups $VisitedGroups `
-                            -Server $Server
+                            -Server $Server `
+                            -EmittedRelationships $EmittedRelationships
                     )
 
                     [PSCustomObject][ordered]@{
@@ -419,7 +455,7 @@ function Resolve-TechHubADGroupMembership {
                         $ChildMember
                     }
 
-                    continue
+                    $EmitDirectMember = $false
                 }
 
                 'User' {
@@ -593,33 +629,35 @@ function Resolve-TechHubADGroupMembership {
         # RETURN MEMBER
         # ========================================================
 
-        [PSCustomObject][ordered]@{
+        if ($EmitDirectMember) {
+            [PSCustomObject][ordered]@{
 
-            Name                 = $Name
+                Name                 = $Name
 
-            SamAccountName       = $SamAccountName
+                SamAccountName       = $SamAccountName
 
-            DistinguishedName    = $DistinguishedName
+                DistinguishedName    = $DistinguishedName
 
-            ObjectGUID           = $ObjectGUID
+                ObjectGUID           = $ObjectGUID
 
-            ObjectClass          = $ObjectClass
+                ObjectClass          = $ObjectClass
 
-            SID                  = $SID
+                SID                  = $SID
 
-            Enabled              = $Enabled
+                Enabled              = $Enabled
 
-            AdminCount           = $AdminCount
+                AdminCount           = $AdminCount
 
-            PasswordNeverExpires = `
-                $PasswordNeverExpires
+                PasswordNeverExpires = `
+                    $PasswordNeverExpires
 
-            MembershipType       = 'Direct'
+                MembershipType       = $MembershipType
 
-            MembershipPath       = `
-                $CurrentMembershipPath
+                MembershipPath       = `
+                    $CurrentMembershipPath
 
-            Resolved             = $Resolved
+                Resolved             = $Resolved
+            }
         }
     }
 }

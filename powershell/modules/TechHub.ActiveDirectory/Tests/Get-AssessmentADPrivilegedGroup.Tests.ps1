@@ -67,6 +67,24 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
                 )
             }
         }
+
+        if (-not (Get-Command Get-ADUser -ErrorAction SilentlyContinue)) {
+            function global:Get-ADUser {
+                param(
+                    [string]$Identity,
+                    [string]$Server
+                )
+            }
+        }
+
+        if (-not (Get-Command Get-ADComputer -ErrorAction SilentlyContinue)) {
+            function global:Get-ADComputer {
+                param(
+                    [string]$Identity,
+                    [string]$Server
+                )
+            }
+        }
     }
 
     AfterAll {
@@ -82,6 +100,8 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
             'Get-ADGroup'
             'Get-ADGroupMember'
             'Get-ADObject'
+            'Get-ADUser'
+            'Get-ADComputer'
         )) {
             $Command = Get-Command `
                 -Name $CommandName `
@@ -183,6 +203,20 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
                     $Script:Details[$Identity]
                 }
             }
+
+        Mock Get-ADUser `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Script:Details.ContainsKey($Identity)) {
+                    $Script:Details[$Identity]
+                }
+            }
+
+        Mock Get-ADComputer `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Script:Details.ContainsKey($Identity)) {
+                    $Script:Details[$Identity]
+                }
+            }
     }
 
     It 'finds a privileged group and normalizes a direct user member' {
@@ -227,6 +261,16 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
                 }
                 else {
                     @($Script:Computer)
+                }
+            }
+
+        Mock Get-ADGroup `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Identity -eq $Nested.DistinguishedName) {
+                    $Nested
+                }
+                else {
+                    $Script:Group
                 }
             }
 
@@ -281,6 +325,20 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
 
     It 'handles unresolved members, disabled accounts, adminCount and password expiry' {
 
+        Mock Get-ADUser `
+            -ModuleName TechHub.ActiveDirectory {
+                [PSCustomObject]@{
+                    Name                 = 'alice'
+                    SamAccountName       = 'alice'
+                    ObjectClass          = @('user')
+                    DistinguishedName    = $Script:User.DistinguishedName
+                    Enabled              = $false
+                    adminCount           = 1
+                    PasswordNeverExpires = $true
+                    SID                  = $Script:User.SID
+                }
+            }
+
         Mock Get-ADObject `
             -ModuleName TechHub.ActiveDirectory {
                 [PSCustomObject]@{
@@ -315,6 +373,11 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
 
     It 'handles an unresolved member without failing the assessment' {
 
+        Mock Get-ADUser `
+            -ModuleName TechHub.ActiveDirectory {
+                throw [System.Exception]::new('SID not resolved')
+            }
+
         Mock Get-ADObject `
             -ModuleName TechHub.ActiveDirectory {
                 throw [System.Exception]::new('SID not resolved')
@@ -327,6 +390,56 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
 
         $Result.Evidence.MemberName |
             Should -Be 'alice'
+    }
+
+    It 'resolves a nested user with an explainable indirect path' {
+
+        $Nested = [PSCustomObject]@{
+            Name              = 'Tier2-Admins'
+            ObjectClass       = @('top', 'group')
+            ObjectGUID        = [guid]::NewGuid()
+            DistinguishedName = 'CN=Tier2-Admins,OU=Groups,DC=example,DC=test'
+            SamAccountName    = 'Tier2-Admins'
+        }
+
+        Mock Get-ADGroup `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Identity -eq $Nested.DistinguishedName) {
+                    $Nested
+                }
+                else {
+                    $Script:Group
+                }
+            }
+
+        Mock Get-ADGroupMember `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Identity -eq $Script:Group.DistinguishedName) {
+                    @($Nested)
+                }
+                else {
+                    @($Script:User)
+                }
+            }
+
+        $Results = @(Get-AssessmentADPrivilegedGroup)
+        $UserFinding = $Results | Where-Object { $_.Evidence.MemberName -eq 'alice' }
+
+        $UserFinding.Evidence.MembershipType | Should -Be 'Indirect'
+        $UserFinding.Evidence.MembershipPath.Count | Should -Be 2
+    }
+
+    It 'does not emit duplicate records for the same relationship and path' {
+
+        Mock Get-ADGroupMember `
+            -ModuleName TechHub.ActiveDirectory {
+                @($Script:User, $Script:User)
+            }
+
+        $Results = @(Get-AssessmentADPrivilegedGroup)
+
+        $Results.Count | Should -Be 1
+        $Results[0].Evidence.MemberObjectType | Should -Be 'User'
     }
 
     It 'classifies approved, excluded and service account patterns' {
@@ -414,6 +527,22 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
             -ParameterFilter {
                 $Server -eq 'dc01.example.test' -and
                 $SearchBase -eq 'OU=Groups,DC=example,DC=test'
+            } `
+            -Times 1
+
+        Should -Invoke `
+            Get-ADGroupMember `
+            -ModuleName TechHub.ActiveDirectory `
+            -ParameterFilter {
+                $Server -eq 'dc01.example.test'
+            } `
+            -Times 1
+
+        Should -Invoke `
+            Get-ADUser `
+            -ModuleName TechHub.ActiveDirectory `
+            -ParameterFilter {
+                $Server -eq 'dc01.example.test'
             } `
             -Times 1
     }
