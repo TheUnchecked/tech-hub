@@ -2,609 +2,393 @@
 
 Set-StrictMode -Version Latest
 
-function Invoke-AssessmentADAssessment {
+function Invoke-AssessmentADRemoteLocalGroups {
+    <#
+    .SYNOPSIS
+        Collects local group membership from selected Active Directory
+        computer targets.
+
+    .DESCRIPTION
+        Uses Get-AssessmentADRemoteTargets for target discovery and
+        Get-AssessmentADRemoteLocalGroupMembers for remote collection.
+
+        Target selection supports:
+
+            All
+            Server
+            Client
+            DomainController
+            SearchBase
+
+        The collector returns every discovered local group and every
+        member contained in that group.
+
+        No account names are hardcoded or filtered during collection.
+
+        This function is read-only.
+
+    .PARAMETER Provider
+        Active Directory assessment provider.
+
+    .PARAMETER TargetType
+        Target selection mode.
+
+    .PARAMETER SearchBase
+        Optional Active Directory OU/container Distinguished Name.
+
+    .PARAMETER IncludeDisabled
+        Includes disabled computer accounts.
+
+    .PARAMETER ComputerName
+        Optional explicit computer names.
+
+        When specified, AD target discovery is bypassed.
+
+    .OUTPUTS
+        ComputerName
+        TargetType
+        GroupName
+        Member
+        CollectionMethod
+        Transport
+        Status
+        DataAvailability
+        ErrorType
+        ErrorMessage
+        IsReadOnly
+    #>
 
     [CmdletBinding()]
+    param(
 
-    param (
-
-        [Parameter()]
-        [object]$Registry,
-
-        [Parameter()]
-        [string[]]$CheckId,
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        $Provider,
 
         [Parameter()]
-        [string[]]$Category,
+        [ValidateSet(
+            'All',
+            'Server',
+            'Client',
+            'DomainController'
+        )]
+        [string]$TargetType = 'All',
 
         [Parameter()]
-        [object]$Provider,
+        [string]$SearchBase,
 
         [Parameter()]
-        [string]$Server,
+        [switch]$IncludeDisabled,
 
         [Parameter()]
-        [string]$SearchBase
+        [string[]]$ComputerName
     )
 
-    # ============================================================
-    # REGISTRY
-    # ============================================================
+    begin {
 
-    if ($null -eq $Registry) {
-
-        $Registry = New-AssessmentADCheckRegistry
-    }
-
-    # ============================================================
-    # ASSESSMENT
-    # ============================================================
-
-    $Assessment = New-AssessmentADAssessmentResult
-
-    $Assessment.Metadata = [PSCustomObject][ordered]@{
-
-        Engine        = 'TechHub.ActiveDirectory'
-
-        EngineVersion = '1.0.0'
-
-        CheckResults  =
-            New-Object System.Collections.ArrayList
-    }
-
-    # ============================================================
-    # SUMMARY
-    # ============================================================
-
-    $Assessment.Summary |
-        Add-Member `
-            -MemberType NoteProperty `
-            -Name ChecksDiscovered `
-            -Value 0
-
-    $Assessment.Summary |
-        Add-Member `
-            -MemberType NoteProperty `
-            -Name ChecksExecuted `
-            -Value 0
-
-    $Assessment.Summary |
-        Add-Member `
-            -MemberType NoteProperty `
-            -Name ChecksSkipped `
-            -Value 0
-
-    $Assessment.Summary |
-        Add-Member `
-            -MemberType NoteProperty `
-            -Name ChecksFailed `
-            -Value 0
-
-    # ============================================================
-    # LOAD DEFINITIONS
-    # ============================================================
-
-    $Definitions = @(
-        $Registry.GetAll()
-    )
-
-    # ============================================================
-    # FILTER CHECK ID
-    # ============================================================
-
-    if (
-        $PSBoundParameters.ContainsKey('CheckId')
-    ) {
-
-        $Definitions = @(
-            $Definitions |
-                Where-Object {
-                    $CheckId -contains $_.CheckId
-                }
-        )
-    }
-
-    # ============================================================
-    # FILTER CATEGORY
-    # ============================================================
-
-    if (
-        $PSBoundParameters.ContainsKey('Category')
-    ) {
-
-        $Definitions = @(
-            $Definitions |
-                Where-Object {
-                    $Category -contains $_.Category
-                }
-        )
-    }
-
-    # ============================================================
-    # DISCOVERED
-    # ============================================================
-
-    $Assessment.Summary.ChecksDiscovered =
-        $Definitions.Count
-
-    # ============================================================
-    # PROVIDER
-    # ============================================================
-
-    $ProviderCreationError = $null
-
-    $ProviderRequired =
-        @(
-            $Definitions |
-                Where-Object {
-
-                    $RequiredProviders =
-                        @($_.RequiredProviders)
-
-                    $RequiredProviders -contains 'TechHubAD' -or
-                    $RequiredProviders -contains 'TechHubADProvider'
-                }
-        ).Count -gt 0
-
-    if (
-        $null -eq $Provider -and
-        $ProviderRequired
-    ) {
-
-        try {
-
-            Write-Verbose `
-                -Message `
-                'Creating one TechHubADProvider for this assessment.'
-
-            $Provider =
-                New-AssessmentADProvider `
-                    -Server $Server `
-                    -ErrorAction Stop
-        }
-        catch {
-
-            $ProviderCreationError = $_
-
-            Write-Verbose `
-                -Message `
-                (
-                    'Unable to create TechHubADProvider: {0}' -f
-                    $_.Exception.Message
-                )
-        }
-    }
-
-    # ============================================================
-    # EXECUTE CHECKS
-    # ============================================================
-
-    foreach ($Definition in $Definitions) {
-
-        $CheckStartedAt =
-            (Get-Date).ToUniversalTime()
-
-        $CheckCompletedAt = $null
-
-        $RequiredProviders =
-            @($Definition.RequiredProviders)
-
-        $DefinitionRequiresProvider =
-            $RequiredProviders -contains 'TechHubAD' -or
-            $RequiredProviders -contains 'TechHubADProvider'
-
-        # ========================================================
-        # CHECK DISABLED
-        # ========================================================
+        Write-Verbose `
+            "Starting remote local group assessment. TargetType=$TargetType"
 
         if (
-            -not $Definition.Enabled
+            -not [string]::IsNullOrWhiteSpace($SearchBase)
         ) {
-
-            $CheckCompletedAt =
-                (Get-Date).ToUniversalTime()
-
-            $CheckResult =
-                New-AssessmentADCheckExecutionError `
-                    -Definition $Definition `
-                    -Status 'NotAvailable' `
-                    -ErrorType 'CheckDisabled' `
-                    -ErrorMessage `
-                        'The check is disabled in the registry.' `
-                    -StartedAt $CheckStartedAt `
-                    -CompletedAt $CheckCompletedAt
-
-            [void]$Assessment.Metadata.CheckResults.Add(
-                $CheckResult
-            )
-
-            $Assessment.Summary.ChecksSkipped++
-
-            continue
-        }
-
-        # ========================================================
-        # READ ONLY VALIDATION
-        # ========================================================
-
-        if (
-            $Definition.IsReadOnly -ne $true
-        ) {
-
-            $CheckCompletedAt =
-                (Get-Date).ToUniversalTime()
-
-            $CheckResult =
-                New-AssessmentADCheckExecutionError `
-                    -Definition $Definition `
-                    -Status 'Error' `
-                    -ErrorType 'ReadOnlyViolation' `
-                    -ErrorMessage `
-                        'The registered check does not declare IsReadOnly = $true.' `
-                    -StartedAt $CheckStartedAt `
-                    -CompletedAt $CheckCompletedAt
-
-            [void]$Assessment.Metadata.CheckResults.Add(
-                $CheckResult
-            )
-
-            $Assessment.Summary.ChecksFailed++
-
-            continue
-        }
-
-        # ========================================================
-        # RESOLVE FUNCTION
-        # ========================================================
-
-        $Command = $null
-
-        try {
-
-            $Command =
-                Get-Command `
-                    -Name ([string]$Definition.FunctionName) `
-                    -CommandType Function `
-                    -ErrorAction Stop
-        }
-        catch {
-
-            $CheckCompletedAt =
-                (Get-Date).ToUniversalTime()
-
-            $CheckResult =
-                New-AssessmentADCheckExecutionError `
-                    -Definition $Definition `
-                    -Status 'Error' `
-                    -ErrorType 'FunctionNotFound' `
-                    -ErrorMessage $_.Exception.Message `
-                    -StartedAt $CheckStartedAt `
-                    -CompletedAt $CheckCompletedAt
-
-            [void]$Assessment.Metadata.CheckResults.Add(
-                $CheckResult
-            )
-
-            $Assessment.Summary.ChecksFailed++
-
-            continue
-        }
-
-        # ========================================================
-        # PROVIDER CREATION ERROR
-        # ========================================================
-
-        if (
-            $DefinitionRequiresProvider -and
-            $null -eq $Provider -and
-            $null -ne $ProviderCreationError -and
-            $Command.Parameters.ContainsKey('Provider')
-        ) {
-
-            $CheckCompletedAt =
-                (Get-Date).ToUniversalTime()
-
-            $CheckResult =
-                New-AssessmentADCheckExecutionError `
-                    -Definition $Definition `
-                    -Status 'Error' `
-                    -ErrorType 'ProviderCreationError' `
-                    -ErrorMessage `
-                        $ProviderCreationError.Exception.Message `
-                    -StartedAt $CheckStartedAt `
-                    -CompletedAt $CheckCompletedAt
-
-            [void]$Assessment.Metadata.CheckResults.Add(
-                $CheckResult
-            )
-
-            $Assessment.Summary.ChecksFailed++
-
-            continue
-        }
-
-        # ========================================================
-        # BUILD CHECK PARAMETERS
-        # ========================================================
-
-        try {
-
-            $Parameters = @{}
-
-            # ----------------------------------------------------
-            # PROVIDER
-            # ----------------------------------------------------
-
-            if (
-                $null -ne $Provider -and
-                $Command.Parameters.ContainsKey('Provider')
-            ) {
-
-                $Parameters.Provider = $Provider
-            }
-
-            # ----------------------------------------------------
-            # SERVER
-            # ----------------------------------------------------
-
-            if (
-                -not [string]::IsNullOrWhiteSpace($Server) -and
-                $Command.Parameters.ContainsKey('Server')
-            ) {
-
-                $Parameters.Server = $Server
-            }
-
-            # ----------------------------------------------------
-            # COMPUTER NAME
-            #
-            # IMPORTANT:
-            #
-            # Remote checks such as:
-            #
-            # Get-AssessmentADRemoteLocalGroups
-            #
-            # use ComputerName rather than Server.
-            #
-            # The assessment engine exposes Server as the generic
-            # target parameter, therefore map Server -> ComputerName
-            # when the registered check supports ComputerName.
-            # ----------------------------------------------------
-
-            if (
-                -not [string]::IsNullOrWhiteSpace($Server) -and
-                $Command.Parameters.ContainsKey('ComputerName')
-            ) {
-
-                $Parameters.ComputerName = $Server
-            }
-
-            # ----------------------------------------------------
-            # SEARCH BASE
-            # ----------------------------------------------------
-
-            if (
-                -not [string]::IsNullOrWhiteSpace($SearchBase) -and
-                $Command.Parameters.ContainsKey('SearchBase')
-            ) {
-
-                $Parameters.SearchBase = $SearchBase
-            }
-
-            # ====================================================
-            # EXECUTE CHECK
-            # ====================================================
 
             Write-Verbose `
-                -Message `
-                (
-                    'Executing registered check {0}.' -f
-                    $Definition.CheckId
-                )
+                "Using SearchBase: $SearchBase"
+        }
+    }
 
-            $Outputs = @(
-                & $Command @Parameters
-            )
+    process {
 
-            # ====================================================
-            # PROCESS OUTPUT
-            # ====================================================
+        # ========================================================
+        # TARGET DISCOVERY
+        # ========================================================
 
-            foreach ($Output in $Outputs) {
+        $Targets = @()
+
+        if (
+            $PSBoundParameters.ContainsKey('ComputerName') -and
+            $ComputerName.Count -gt 0
+        ) {
+
+            Write-Verbose `
+                'Explicit computer names supplied. AD target discovery will be bypassed.'
+
+            foreach ($Name in $ComputerName) {
 
                 if (
-                    $null -ne $Output -and
-                    $null -ne $Output.PSObject.Properties['FindingId']
+                    [string]::IsNullOrWhiteSpace($Name)
                 ) {
-
-                    $Assessment.AddFinding(
-                        $Output
-                    )
+                    continue
                 }
-                else {
 
-                    Write-Verbose `
-                        -Message `
-                        (
-                            'Check {0} returned a non-finding object.' -f
-                            $Definition.CheckId
-                        )
+                $Targets += [PSCustomObject][ordered]@{
+
+                    ComputerName = $Name
+
+                    TargetType = 'Unknown'
+
+                    Enabled = $null
+
+                    DistinguishedName = $null
                 }
             }
-
-            $Assessment.Summary.ChecksExecuted++
         }
-        catch {
+        else {
 
-            # ====================================================
-            # CHECK EXECUTION ERROR
-            # ====================================================
-
-            $CheckCompletedAt =
-                (Get-Date).ToUniversalTime()
-
-            $ErrorType =
-                'CheckExecutionError'
+            $TargetParameters = @{
+                Provider = $Provider
+                TargetType = $TargetType
+                ErrorAction = 'Stop'
+            }
 
             if (
-                $_.Exception.Message -match
-                '(?i)access denied|unauthorized'
+                -not [string]::IsNullOrWhiteSpace($SearchBase)
             ) {
 
-                $ErrorType =
-                    'AccessDenied'
-            }
-            elseif (
-                $_.Exception.Message -match
-                '(?i)LDAP|directory service'
-            ) {
-
-                $ErrorType =
-                    'LdapError'
-            }
-            elseif (
-                $_.Exception.Message -match
-                '(?i)server|unreachable|timeout'
-            ) {
-
-                $ErrorType =
-                    'ServerUnavailable'
+                $TargetParameters.SearchBase = $SearchBase
             }
 
-            $CheckResult =
-                New-AssessmentADCheckExecutionError `
-                    -Definition $Definition `
-                    -Status 'Error' `
-                    -ErrorType $ErrorType `
-                    -ErrorMessage $_.Exception.Message `
-                    -StartedAt $CheckStartedAt `
-                    -CompletedAt $CheckCompletedAt
+            if ($IncludeDisabled) {
 
-            [void]$Assessment.Metadata.CheckResults.Add(
-                $CheckResult
+                $TargetParameters.IncludeDisabled = $true
+            }
+
+            $Targets = @(
+                Get-AssessmentADRemoteTargets @TargetParameters
             )
+        }
 
-            $Assessment.Summary.ChecksFailed++
+        if ($Targets.Count -eq 0) {
 
             Write-Verbose `
-                -Message `
-                (
-                    'Check {0} failed: {1}' -f
-                    $Definition.CheckId,
-                    $_.Exception.Message
-                )
+                'No remote assessment targets were discovered.'
+
+            return
         }
-    }
 
-    # ============================================================
-    # PROVIDER RESULTS
-    # ============================================================
+        Write-Verbose `
+            "Remote targets selected: $($Targets.Count)"
 
-    if (
-        $null -ne $Provider -and
-        $null -ne $Provider.PSObject.Properties['Results']
-    ) {
+        # ========================================================
+        # REMOTE LOCAL GROUP COLLECTION
+        # ========================================================
 
-        foreach (
-            $ProviderResult in @($Provider.Results)
-        ) {
+        foreach ($Target in $Targets) {
+
+            $Name = [string]$Target.ComputerName
 
             if (
-                $null -ne $ProviderResult
+                [string]::IsNullOrWhiteSpace($Name)
             ) {
-
-                $Assessment.AddProviderResult(
-                    $ProviderResult
-                )
+                continue
             }
-        }
-    }
 
-    # ============================================================
-    # PROVIDER STATUS
-    # ============================================================
-
-    $AssessmentProviderStatus =
-        'NotAvailable'
-
-    if (
-        $null -ne $ProviderCreationError
-    ) {
-
-        $AssessmentProviderStatus =
-            'Error'
-    }
-    elseif (
-        $null -ne $Provider
-    ) {
-
-        $AssessmentProviderStatus =
-            'Available'
-
-        if (
-            $null -ne
-            $Provider.PSObject.Methods['GetProviderStatus']
-        ) {
+            Write-Verbose `
+                "[$Name] Collecting local groups and members."
 
             try {
 
-                $ProviderStatusResult =
-                    $Provider.GetProviderStatus()
+                $LocalGroups = @(
+                    Get-AssessmentADRemoteLocalGroupMembers `
+                        -ComputerName $Name `
+                        -ErrorAction Stop
+                )
 
-                if (
-                    $null -ne $ProviderStatusResult -and
-                    $null -ne $ProviderStatusResult.Status
-                ) {
+                if ($LocalGroups.Count -eq 0) {
 
-                    $AssessmentProviderStatus =
-                        [string]$ProviderStatusResult.Status
+                    [PSCustomObject][ordered]@{
+
+                        ComputerName =
+                            $Name
+
+                        TargetType =
+                            [string]$Target.TargetType
+
+                        GroupName =
+                            $null
+
+                        Member =
+                            $null
+
+                        CollectionMethod =
+                            $null
+
+                        Transport =
+                            $null
+
+                        Status =
+                            'NotAvailable'
+
+                        DataAvailability =
+                            'NotAvailable'
+
+                        ErrorType =
+                            'NoLocalGroupData'
+
+                        ErrorMessage =
+                            'No local group data was returned.'
+
+                        IsReadOnly =
+                            $true
+                    }
+
+                    continue
+                }
+
+                # =================================================
+                # FLATTEN GROUP MEMBERS
+                #
+                # One output object per member.
+                # =================================================
+
+                foreach ($Group in $LocalGroups) {
+
+                    $GroupName =
+                        [string]$Group.GroupName
+
+                    $Members = @(
+                        $Group.GroupMembers
+                    )
+
+                    # ---------------------------------------------
+                    # Empty group
+                    # ---------------------------------------------
+
+                    if ($Members.Count -eq 0) {
+
+                        [PSCustomObject][ordered]@{
+
+                            ComputerName =
+                                $Name
+
+                            TargetType =
+                                [string]$Target.TargetType
+
+                            GroupName =
+                                $GroupName
+
+                            Member =
+                                $null
+
+                            CollectionMethod =
+                                $Group.CollectionMethod
+
+                            Transport =
+                                $Group.Transport
+
+                            Status =
+                                $Group.Status
+
+                            DataAvailability =
+                                $Group.DataAvailability
+
+                            ErrorType =
+                                $Group.ErrorType
+
+                            ErrorMessage =
+                                $Group.ErrorMessage
+
+                            IsReadOnly =
+                                $true
+                        }
+
+                        continue
+                    }
+
+                    # ---------------------------------------------
+                    # One record per member
+                    # ---------------------------------------------
+
+                    foreach ($Member in $Members) {
+
+                        if (
+                            [string]::IsNullOrWhiteSpace(
+                                [string]$Member
+                            )
+                        ) {
+                            continue
+                        }
+
+                        [PSCustomObject][ordered]@{
+
+                            ComputerName =
+                                $Name
+
+                            TargetType =
+                                [string]$Target.TargetType
+
+                            GroupName =
+                                $GroupName
+
+                            Member =
+                                [string]$Member
+
+                            CollectionMethod =
+                                $Group.CollectionMethod
+
+                            Transport =
+                                $Group.Transport
+
+                            Status =
+                                $Group.Status
+
+                            DataAvailability =
+                                $Group.DataAvailability
+
+                            ErrorType =
+                                $Group.ErrorType
+
+                            ErrorMessage =
+                                $Group.ErrorMessage
+
+                            IsReadOnly =
+                                $true
+                        }
+                    }
                 }
             }
             catch {
 
                 Write-Verbose `
-                    -Message `
-                    (
-                        'Unable to collect final provider status: {0}' -f
+                    "[$Name] Local group collection failed: $($_.Exception.Message)"
+
+                [PSCustomObject][ordered]@{
+
+                    ComputerName =
+                        $Name
+
+                    TargetType =
+                        [string]$Target.TargetType
+
+                    GroupName =
+                        $null
+
+                    Member =
+                        $null
+
+                    CollectionMethod =
+                        'None'
+
+                    Transport =
+                        'None'
+
+                    Status =
+                        'NotAvailable'
+
+                    DataAvailability =
+                        'NotAvailable'
+
+                    ErrorType =
+                        'LocalGroupCollectionError'
+
+                    ErrorMessage =
                         $_.Exception.Message
-                    )
+
+                    IsReadOnly =
+                        $true
+                }
             }
         }
     }
-
-    # ============================================================
-    # FINAL ASSESSMENT STATUS
-    # ============================================================
-
-    $Assessment.SetProviderStatus(
-        $AssessmentProviderStatus
-    )
-
-    $DataAvailability =
-        if (
-            $Assessment.Summary.ChecksFailed -gt 0
-        ) {
-            'Partial'
-        }
-        else {
-            'Complete'
-        }
-
-    $Assessment.SetDataAvailability(
-        $DataAvailability
-    )
-
-    # ============================================================
-    # COMPLETE
-    # ============================================================
-
-    $Assessment.Complete(
-        (Get-Date).ToUniversalTime()
-    )
-
-    # ============================================================
-    # RETURN
-    # ============================================================
-
-    $Assessment
 }

@@ -31,6 +31,7 @@
     'Get-AssessmentADRemoteIISAppPoolAccounts'
     'Get-AssessmentADRemoteLocalGroupMembers'
     'Get-AssessmentADRemoteNetworkShareACLs'
+    'Get-AssessmentADRemoteScheduledTaskSecurity'
     'Get-AssessmentADRemoteScheduledTaskAccounts'
     'Get-AssessmentADRemoteOSInfo'
     'Get-AssessmentADRemoteWindowsFeatures'
