@@ -429,6 +429,82 @@ Describe 'Get-AssessmentADPrivilegedGroup' {
         $UserFinding.Evidence.MembershipPath.Count | Should -Be 2
     }
 
+    It 'preserves distinct membership paths for the same user' {
+
+        $NestedA = [PSCustomObject]@{
+            Name              = 'Tier2-Admins'
+            ObjectClass       = @('top', 'group')
+            ObjectGUID        = [guid]::NewGuid()
+            DistinguishedName = 'CN=Tier2-Admins,OU=Groups,DC=example,DC=test'
+            SamAccountName    = 'Tier2-Admins'
+        }
+
+        $NestedB = [PSCustomObject]@{
+            Name              = 'Tier3-Admins'
+            ObjectClass       = @('top', 'group')
+            ObjectGUID        = [guid]::NewGuid()
+            DistinguishedName = 'CN=Tier3-Admins,OU=Groups,DC=example,DC=test'
+            SamAccountName    = 'Tier3-Admins'
+        }
+
+        Mock Get-ADGroup `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Identity -eq $NestedA.DistinguishedName) {
+                    $NestedA
+                }
+                elseif ($Identity -eq $NestedB.DistinguishedName) {
+                    $NestedB
+                }
+                else {
+                    $Script:Group
+                }
+            }
+
+        Mock Get-ADGroupMember `
+            -ModuleName TechHub.ActiveDirectory {
+                if ($Identity -eq $Script:Group.DistinguishedName) {
+                    @($NestedA, $NestedB)
+                }
+                else {
+                    @($Script:User)
+                }
+            }
+
+        $Results = @(Get-AssessmentADPrivilegedGroup)
+
+        $UserFindings = @(
+            $Results |
+                Where-Object {
+                    $_.Evidence.MemberName -eq 'alice'
+                }
+        )
+
+        $UserFindings.Count |
+            Should -Be 2
+
+        @(
+            $UserFindings |
+                ForEach-Object {
+                    $_.Evidence.MembershipType
+                }
+        ) |
+            Should -Be @(
+                'Indirect'
+                'Indirect'
+            )
+
+        @(
+            $UserFindings |
+                ForEach-Object {
+                    ($_.Evidence.MembershipPath -join ' -> ')
+                }
+        ) |
+            Sort-Object |
+            Should -Be @(
+                'CN=Domain Admins,CN=Users,DC=example,DC=test -> CN=Tier2-Admins,OU=Groups,DC=example,DC=test'
+                'CN=Domain Admins,CN=Users,DC=example,DC=test -> CN=Tier3-Admins,OU=Groups,DC=example,DC=test'
+            )
+    }
     It 'does not emit duplicate records for the same relationship and path' {
 
         Mock Get-ADGroupMember `
