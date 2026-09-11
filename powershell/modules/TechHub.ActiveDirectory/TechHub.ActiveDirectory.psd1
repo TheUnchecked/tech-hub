@@ -56,6 +56,7 @@
     'New-AssessmentADCheckRegistry'
     'Invoke-AssessmentADAssessment'
     'Invoke-AssessmentADRemoteAssessment'
+    'Invoke-AssessmentADFullAssessment'
 
     # ------------------------------------------------------------
     # Provider

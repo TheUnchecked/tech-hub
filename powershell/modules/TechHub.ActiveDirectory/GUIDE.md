@@ -289,6 +289,30 @@ Invoke-AssessmentADRemoteAssessment -ComputerName 'srv01' -Collector 'OSInfo','W
 ```
 Parametri: `-ComputerName` (mandatory), `-Assessment`, `-Collector`.
 
+#### `Invoke-AssessmentADFullAssessment`
+Comando unico: esegue l'assessment di sicurezza AD, scopre (o usa la lista
+fornita di) computer remoti, raccoglie i dati infrastrutturali da ciascuno e
+esporta **un solo report HTML** con dentro tutto. È la funzione da usare per
+"lanciare un assessment completo" con un comando solo.
+```powershell
+# Tutto in automatico: scopre i server del dominio ed esporta un report con timestamp
+Invoke-AssessmentADFullAssessment -Server dc01.example.test
+
+# Lista di computer esplicita e path di output scelto
+Invoke-AssessmentADFullAssessment -Server dc01.example.test -ComputerName 'srv01','srv02' -OutputPath .\report.html
+
+# Solo i check di sicurezza AD, senza contattare macchine remote
+Invoke-AssessmentADFullAssessment -Server dc01.example.test -SkipRemoteAssessment
+```
+Parametri: `-Server`, `-TargetType` (default `Server`, usato per la discovery
+automatica quando non passi `-ComputerName`), `-ComputerName`,
+`-SkipRemoteAssessment`, `-OutputPath` (default: file con timestamp nella
+directory corrente), `-Provider`.
+
+Restituisce un oggetto con `.Assessment` (l'oggetto assessment completo,
+utile per ulteriori export JSON/CSV) e `.ReportPath` (il percorso del file
+HTML scritto).
+
 ---
 
 ### 5.3 Provider
@@ -372,7 +396,17 @@ Export-AssessmentADAssessmentHtml -Assessment $Assessment -Path .\report.html
 
 ## 6. Scenari d'uso tipici
 
-### Assessment AD completo con export
+### Assessment completo "a 360°" con un comando solo (consigliato)
+```powershell
+Import-Module .\TechHub.ActiveDirectory.psd1 -Force
+
+$Result = Invoke-AssessmentADFullAssessment -Server dc01.example.test
+
+$Result.ReportPath          # dove è stato scritto il report HTML
+$Result.Assessment.Summary  # riepilogo rapido a schermo
+```
+
+### Solo l'assessment di sicurezza AD, con export manuale (più controllo)
 ```powershell
 Import-Module .\TechHub.ActiveDirectory.psd1 -Force
 
