@@ -5,13 +5,8 @@ Set-StrictMode -Version Latest
 Describe 'Get-AssessmentADRemoteScheduledTaskAccounts' {
 
     BeforeAll {
+        . "$PSScriptRoot\TechHubADRemoteCimTestStubs.ps1"
         . "$PSScriptRoot\..\Public\Get-AssessmentADRemoteScheduledTaskAccounts.ps1"
-
-        if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
-            function global:New-CimSession {
-                throw 'Synthetic CIM session'
-            }
-        }
     }
 
     It 'has the expected read-only contract' {

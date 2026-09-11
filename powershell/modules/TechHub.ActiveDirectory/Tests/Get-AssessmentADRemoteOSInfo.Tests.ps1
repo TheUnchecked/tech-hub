@@ -5,35 +5,9 @@ Set-StrictMode -Version Latest
 Describe 'Get-AssessmentADRemoteOSInfo' {
 
     BeforeAll {
+        . "$PSScriptRoot\TechHubADRemoteCimTestStubs.ps1"
         . "$PSScriptRoot\..\Private\Invoke-AssessmentADRemoteCimQuery.ps1"
         . "$PSScriptRoot\..\Public\Get-AssessmentADRemoteOSInfo.ps1"
-
-        if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
-            function global:New-CimSession {
-                throw 'Synthetic CIM session'
-            }
-        }
-
-        if (-not (Get-Command New-CimSessionOption -ErrorAction SilentlyContinue)) {
-            function global:New-CimSessionOption {
-                throw 'Synthetic CIM option'
-            }
-        }
-
-        if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
-            function global:Get-CimInstance {
-                throw 'Synthetic CIM query'
-            }
-        }
-
-        if (-not (Get-Command Remove-CimSession -ErrorAction SilentlyContinue)) {
-            function global:Remove-CimSession {
-                param(
-                    [Parameter(ValueFromPipeline)]
-                    [object]$CimSession
-                )
-            }
-        }
     }
 
     It 'returns OS information' {
@@ -88,7 +62,7 @@ Describe 'Get-AssessmentADRemoteOSInfo' {
         Mock Remove-CimSession {}
 
         $result = @(
-            Get-AssessmentADRemoteOSInfo -ComputerName 'WEB01', 'WEB02'
+            'WEB01', 'WEB02' | Get-AssessmentADRemoteOSInfo
         )
 
         $result.Count | Should -Be 2
@@ -98,6 +72,10 @@ Describe 'Get-AssessmentADRemoteOSInfo' {
 
         Mock New-CimSession {
             [PSCustomObject]@{ Id = 'synthetic-session' }
+        }
+
+        Mock New-CimSessionOption {
+            [PSCustomObject]@{ UseSsl = $true }
         }
 
         Mock Get-CimInstance {

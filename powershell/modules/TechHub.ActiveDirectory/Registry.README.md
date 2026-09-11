@@ -42,10 +42,11 @@ The default registry contains:
 - `AD-CONSTRAINED-DELEGATION` -> `Get-AssessmentADConstrainedDelegation`
 - `AD-RBCD` -> `Get-AssessmentADRBCD`
 - `AD-PRIVILEGED-GROUP` -> `Get-AssessmentADPrivilegedGroup`
+- `AD-REMOTE-LOCAL-GROUPS` -> `Get-AssessmentADRemoteLocalGroups`
 
 TrustedToAuth is not registered because it is not currently implemented.
 
-All current definitions require `TechHubADProvider`, the `ActiveDirectory` module, and declare `IsReadOnly = $true`.
+The first four definitions require `TechHubADProvider` and the `ActiveDirectory` module. `AD-REMOTE-LOCAL-GROUPS` requires no provider; it drives the generic remote local-group collector instead. All definitions declare `IsReadOnly = $true`.
 
 ## Categories and future engine
 

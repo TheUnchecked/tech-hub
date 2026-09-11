@@ -5,35 +5,9 @@ Set-StrictMode -Version Latest
 Describe 'Get-AssessmentADRemoteWindowsFeatures' {
 
     BeforeAll {
+        . "$PSScriptRoot\TechHubADRemoteCimTestStubs.ps1"
         . "$PSScriptRoot\..\Private\Invoke-AssessmentADRemoteCimQuery.ps1"
         . "$PSScriptRoot\..\Public\Get-AssessmentADRemoteWindowsFeatures.ps1"
-
-        if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
-            function global:New-CimSession {
-                throw 'Synthetic CIM session'
-            }
-        }
-
-        if (-not (Get-Command New-CimSessionOption -ErrorAction SilentlyContinue)) {
-            function global:New-CimSessionOption {
-                throw 'Synthetic CIM option'
-            }
-        }
-
-        if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
-            function global:Get-CimInstance {
-                throw 'Synthetic CIM query'
-            }
-        }
-
-        if (-not (Get-Command Remove-CimSession -ErrorAction SilentlyContinue)) {
-            function global:Remove-CimSession {
-                param(
-                    [Parameter(ValueFromPipeline)]
-                    [object]$CimSession
-                )
-            }
-        }
     }
 
     It 'returns installed features' {

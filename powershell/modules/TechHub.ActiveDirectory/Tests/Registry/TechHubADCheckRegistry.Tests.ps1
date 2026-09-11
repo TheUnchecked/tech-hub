@@ -39,7 +39,7 @@ Describe 'TechHubADCheckRegistry' {
         }
     }
 
-    It 'registers all four current checks' {
+    It 'registers all five current checks' {
 
         $Registry = New-AssessmentADCheckRegistry
 
@@ -47,7 +47,7 @@ Describe 'TechHubADCheckRegistry' {
             Should -Not -BeNullOrEmpty
 
         $Registry.GetAll().Count |
-            Should -Be 4
+            Should -Be 5
 
         $Registry.GetAll().FunctionName |
             Should -Contain 'Get-AssessmentADUnconstrainedDelegation'
@@ -60,6 +60,9 @@ Describe 'TechHubADCheckRegistry' {
 
         $Registry.GetAll().FunctionName |
             Should -Contain 'Get-AssessmentADPrivilegedGroup'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADRemoteLocalGroups'
 
         $Registry.GetAll().FunctionName |
             Should -Not -Contain 'Get-AssessmentADTrustedToAuth'
@@ -83,7 +86,7 @@ Describe 'TechHubADCheckRegistry' {
         $Registry = New-AssessmentADCheckRegistry
 
         @($Registry.GetAll()).Count |
-            Should -Be 4
+            Should -Be 5
     }
 
     It 'finds definitions by category' {
@@ -94,7 +97,7 @@ Describe 'TechHubADCheckRegistry' {
             Should -Be 3
 
         @($Registry.FindByCategory('PrivilegedAccess')).Count |
-            Should -Be 1
+            Should -Be 2
     }
 
     It 'finds definitions by provider' {
@@ -129,7 +132,7 @@ Describe 'TechHubADCheckRegistry' {
         )
 
         $EnabledDefinitions.Count |
-            Should -Be 4
+            Should -Be 5
     }
 
     It 'preserves read-only metadata' {
@@ -257,5 +260,8 @@ Describe 'TechHubADCheckRegistry' {
 
         $Ids[3] |
             Should -Be 'AD-PRIVILEGED-GROUP'
+
+        $Ids[4] |
+            Should -Be 'AD-REMOTE-LOCAL-GROUPS'
     }
 }
