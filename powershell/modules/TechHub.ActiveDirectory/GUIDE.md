@@ -112,6 +112,61 @@ Parametri: `-Server`, `-SearchBase`, `-GroupPatterns`, `-ApprovedMemberPatterns`
 > (branch `fix/ad-privileged-group-server-context`). Se lo provi in lab,
 > verifica di essere sul branch più aggiornato.
 
+#### `Get-AssessmentADKerberoasting`
+Rileva account utente con Service Principal Name (SPN), classificandoli per priorità: privilegiati (`adminCount=1`) e/o senza supporto AES (`msDS-SupportedEncryptionTypes`) sono più critici.
+```powershell
+Get-AssessmentADKerberoasting
+Get-AssessmentADKerberoasting -ExcludedAccountPatterns 'svc-approved-*'
+```
+Parametri: `-Server`, `-SearchBase`, `-Domain`, `-Forest`, `-DomainController`,
+`-ExcludedAccountPatterns` (pattern SamAccountName da escludere), `-StalePasswordDays`, `-Provider`.
+
+#### `Get-AssessmentADASREPRoasting`
+Rileva account con `DONT_REQUIRE_PREAUTH` (`userAccountControl` `0x400000`): attaccabili offline senza credenziali valide.
+```powershell
+Get-AssessmentADASREPRoasting
+```
+Parametri: `-Server`, `-SearchBase`, `-Domain`, `-Forest`, `-DomainController`,
+`-ExcludedAccountPatterns`, `-Provider`.
+
+#### `Get-AssessmentADKrbtgtPasswordAge`
+Riporta l'età della password dell'account `krbtgt` (indicatore di esposizione a golden ticket).
+```powershell
+Get-AssessmentADKrbtgtPasswordAge
+Get-AssessmentADKrbtgtPasswordAge -MaxPasswordAgeDays 90
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`, `-MaxPasswordAgeDays` (default 180), `-Provider`.
+
+#### `Get-AssessmentADPasswordPolicy`
+Valuta la password policy di default del dominio e, opzionalmente, le Fine-Grained Password Policy, contro una baseline (lunghezza minima, complessità, reversible encryption, lockout).
+```powershell
+Get-AssessmentADPasswordPolicy
+Get-AssessmentADPasswordPolicy -IncludeFineGrainedPolicies -MinPasswordLengthThreshold 14
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`,
+`-MinPasswordLengthThreshold` (default 14), `-IncludeFineGrainedPolicies`, `-Provider`.
+
+#### `Get-AssessmentADDCSyncRights`
+Analizza l'ACL sulla radice del dominio per individuare principal (fuori dai detentori di default: Domain Admins, Enterprise Admins, Domain Controllers, SYSTEM, ecc.) con i diritti di replica `DS-Replication-Get-Changes`/`-All` (DCSync).
+```powershell
+Get-AssessmentADDCSyncRights
+Get-AssessmentADDCSyncRights -ApprovedPrincipalPatterns '*\Domain Admins', '*\svc-adconnect'
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`,
+`-ApprovedPrincipalPatterns`, `-Provider`.
+
+#### `Get-AssessmentADShadowAdminRights`
+Analizza l'ACL sulla radice del dominio e su `AdminSDHolder` per individuare principal con diritti `GenericAll`/`WriteDacl`/`WriteOwner`/`GenericWrite` fuori dai detentori di default ("shadow admin").
+```powershell
+Get-AssessmentADShadowAdminRights
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`,
+`-ApprovedPrincipalPatterns`, `-Provider`.
+
+> Queste due funzioni usano una nuova capability del Provider,
+> `GetObjectSecurityDescriptor($Identity)`, che legge (mai scrive)
+> l'attributo `nTSecurityDescriptor` tramite `Get-ADObject`.
+
 #### `Get-AssessmentADInventory`
 Inventario read-only di utenti, computer, gruppi, MSA/gMSA e OU, tramite il
 provider (nessun cmdlet AD invocato direttamente).
@@ -261,7 +316,9 @@ $Registry = New-AssessmentADCheckRegistry
 $Registry.GetAll() | Format-Table CheckId, Name, Category, Enabled
 ```
 Check attualmente registrati: `AD-UNCONSTRAINED-DELEGATION`,
-`AD-CONSTRAINED-DELEGATION`, `AD-RBCD`, `AD-PRIVILEGED-GROUP`,
+`AD-CONSTRAINED-DELEGATION`, `AD-RBCD`, `AD-KERBEROASTING`,
+`AD-ASREP-ROASTING`, `AD-KRBTGT-PASSWORD-AGE`, `AD-PASSWORD-POLICY`,
+`AD-DCSYNC-RIGHTS`, `AD-SHADOW-ADMIN`, `AD-PRIVILEGED-GROUP`,
 `AD-REMOTE-LOCAL-GROUPS`.
 
 #### `Invoke-AssessmentADAssessment`

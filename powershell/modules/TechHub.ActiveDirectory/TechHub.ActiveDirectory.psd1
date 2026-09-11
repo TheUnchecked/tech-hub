@@ -23,6 +23,12 @@
     'Get-AssessmentADPrivilegedGroup'
     'Get-AssessmentADServiceAccounts'
     'Get-AssessmentADRemoteTargets'
+    'Get-AssessmentADKerberoasting'
+    'Get-AssessmentADASREPRoasting'
+    'Get-AssessmentADKrbtgtPasswordAge'
+    'Get-AssessmentADPasswordPolicy'
+    'Get-AssessmentADDCSyncRights'
+    'Get-AssessmentADShadowAdminRights'
 
     # ------------------------------------------------------------
     # Remote assessment collectors

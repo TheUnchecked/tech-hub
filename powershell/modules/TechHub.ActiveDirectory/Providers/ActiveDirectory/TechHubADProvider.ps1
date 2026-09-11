@@ -273,6 +273,62 @@ class TechHubADProvider {
     }
 
     # ========================================================
+    # DEFAULT DOMAIN PASSWORD POLICY
+    # ========================================================
+
+    [object] GetDefaultDomainPasswordPolicy() {
+
+        $Operation = 'GetDefaultDomainPasswordPolicy'
+
+        $ReadResult = Get-AssessmentADProviderDefaultPasswordPolicy -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # FINE-GRAINED PASSWORD POLICIES
+    # ========================================================
+
+    [object] GetFineGrainedPasswordPolicies() {
+
+        $Operation = 'GetFineGrainedPasswordPolicies'
+
+        $ReadResult = Get-AssessmentADProviderFineGrainedPasswordPolicies -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # OBJECT SECURITY DESCRIPTOR (ACL)
+    # ========================================================
+
+    [object] GetObjectSecurityDescriptor(
+        [string] $Identity
+    ) {
+
+        $Operation = 'GetObjectSecurityDescriptor'
+
+        $ReadResult = Get-AssessmentADProviderObjectSecurityDescriptor -Identity $Identity -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
     # PROVIDER STATUS
     # ========================================================
 

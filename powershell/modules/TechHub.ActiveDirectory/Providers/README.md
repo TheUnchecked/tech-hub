@@ -20,6 +20,9 @@ Supported read-only operations:
 - `GetADObjects($LdapFilter, $SearchBase, $Properties)`
 - `GetGroups($SearchBase, $Filter)`
 - `GetGroupMembers($GroupIdentity)`
+- `GetDefaultDomainPasswordPolicy()`
+- `GetFineGrainedPasswordPolicies()`
+- `GetObjectSecurityDescriptor($Identity)`
 
 The provider never accepts scriptblocks or arbitrary commands. When `-Server` is omitted, the Active Directory module performs its normal automatic discovery.
 
@@ -42,6 +45,10 @@ Every operation returns an object containing:
 
 Domain and forest operations preserve their specific metadata such as `DNSRoot`, `NetBIOSName`, `DomainMode`, `ForestMode`, `RootDomain`, and `Domains`.
 
+`GetDefaultDomainPasswordPolicy()` and `GetFineGrainedPasswordPolicies()` return the raw policy objects from Active Directory (`MinPasswordLength`, `ComplexityEnabled`, `ReversibleEncryptionEnabled`, `LockoutThreshold`, and related properties); they are not passed through the `GetADObjects()` normalizer.
+
+`GetObjectSecurityDescriptor($Identity)` returns one normalized access-control entry (ACE) per `Data` item: `IdentityReference`, `ActiveDirectoryRights` (string), `ObjectTypeGuid` (the extended right or property-set GUID the ACE applies to, or an all-zero GUID when it applies to the whole object), `AccessControlType` (`Allow`/`Deny`), and `IsInherited`. It reads the object's `nTSecurityDescriptor` attribute; it never modifies an ACL.
+
 ## Status semantics
 
 The provider uses the existing status values:
@@ -57,7 +64,7 @@ The provider preserves successful operation results when another operation fails
 
 ## Read-only behavior
 
-Only Active Directory read cmdlets are used: `Get-ADDomain`, `Get-ADForest`, `Get-ADDomainController`, `Get-ADObject`, `Get-ADGroup`, and `Get-ADGroupMember`. The provider does not modify AD, ACLs, GPOs, registry, or filesystem state. It does not contain credentials, execute dynamic code, calculate risk, or create findings.
+Only Active Directory read cmdlets are used: `Get-ADDomain`, `Get-ADForest`, `Get-ADDomainController`, `Get-ADObject`, `Get-ADGroup`, `Get-ADGroupMember`, `Get-ADDefaultDomainPasswordPolicy`, and `Get-ADFineGrainedPasswordPolicy`. `GetObjectSecurityDescriptor()` reads an ACL by requesting the `nTSecurityDescriptor` property through `Get-ADObject`; it does not call `Set-Acl`/`Set-ADObject` or otherwise modify a security descriptor. The provider does not modify AD, ACLs, GPOs, registry, or filesystem state. It does not contain credentials, execute dynamic code, calculate risk, or create findings.
 
 ## Testing and limitations
 

@@ -39,7 +39,7 @@ Describe 'TechHubADCheckRegistry' {
         }
     }
 
-    It 'registers all five current checks' {
+    It 'registers all eleven current checks' {
 
         $Registry = New-AssessmentADCheckRegistry
 
@@ -47,7 +47,7 @@ Describe 'TechHubADCheckRegistry' {
             Should -Not -BeNullOrEmpty
 
         $Registry.GetAll().Count |
-            Should -Be 5
+            Should -Be 11
 
         $Registry.GetAll().FunctionName |
             Should -Contain 'Get-AssessmentADUnconstrainedDelegation'
@@ -57,6 +57,24 @@ Describe 'TechHubADCheckRegistry' {
 
         $Registry.GetAll().FunctionName |
             Should -Contain 'Get-AssessmentADRBCD'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADKerberoasting'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADASREPRoasting'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADKrbtgtPasswordAge'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADPasswordPolicy'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADDCSyncRights'
+
+        $Registry.GetAll().FunctionName |
+            Should -Contain 'Get-AssessmentADShadowAdminRights'
 
         $Registry.GetAll().FunctionName |
             Should -Contain 'Get-AssessmentADPrivilegedGroup'
@@ -86,7 +104,7 @@ Describe 'TechHubADCheckRegistry' {
         $Registry = New-AssessmentADCheckRegistry
 
         @($Registry.GetAll()).Count |
-            Should -Be 5
+            Should -Be 11
     }
 
     It 'finds definitions by category' {
@@ -97,7 +115,13 @@ Describe 'TechHubADCheckRegistry' {
             Should -Be 3
 
         @($Registry.FindByCategory('PrivilegedAccess')).Count |
-            Should -Be 2
+            Should -Be 4
+
+        @($Registry.FindByCategory('Kerberos')).Count |
+            Should -Be 3
+
+        @($Registry.FindByCategory('Authentication')).Count |
+            Should -Be 1
     }
 
     It 'finds definitions by provider' {
@@ -109,7 +133,7 @@ Describe 'TechHubADCheckRegistry' {
         )
 
         $Definitions.Count |
-            Should -Be 4
+            Should -Be 10
     }
 
     It 'returns null for an unknown CheckId' {
@@ -132,7 +156,7 @@ Describe 'TechHubADCheckRegistry' {
         )
 
         $EnabledDefinitions.Count |
-            Should -Be 5
+            Should -Be 11
     }
 
     It 'preserves read-only metadata' {
@@ -259,9 +283,27 @@ Describe 'TechHubADCheckRegistry' {
             Should -Be 'AD-RBCD'
 
         $Ids[3] |
-            Should -Be 'AD-PRIVILEGED-GROUP'
+            Should -Be 'AD-KERBEROASTING'
 
         $Ids[4] |
+            Should -Be 'AD-ASREP-ROASTING'
+
+        $Ids[5] |
+            Should -Be 'AD-KRBTGT-PASSWORD-AGE'
+
+        $Ids[6] |
+            Should -Be 'AD-PASSWORD-POLICY'
+
+        $Ids[7] |
+            Should -Be 'AD-DCSYNC-RIGHTS'
+
+        $Ids[8] |
+            Should -Be 'AD-SHADOW-ADMIN'
+
+        $Ids[9] |
+            Should -Be 'AD-PRIVILEGED-GROUP'
+
+        $Ids[10] |
             Should -Be 'AD-REMOTE-LOCAL-GROUPS'
     }
 }
