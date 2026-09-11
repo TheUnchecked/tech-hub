@@ -75,9 +75,7 @@ Describe 'Invoke-AssessmentADAssessment provider lifecycle' {
 
     BeforeAll {
 
-        $ModuleRoot = Join-Path `
-            (Get-Location).Path `
-            'powershell\modules\TechHub.ActiveDirectory'
+        $ModuleRoot = (Resolve-Path "$PSScriptRoot/../..").Path
 
         $ModuleManifest = Join-Path `
             $ModuleRoot `
@@ -684,9 +682,7 @@ Describe 'Invoke-AssessmentADAssessment provider lifecycle' {
 
     It 'contains no direct AD modifications or dynamic execution' {
 
-        $ModuleRoot = Join-Path `
-            (Get-Location).Path `
-            'powershell\modules\TechHub.ActiveDirectory'
+        $ModuleRoot = (Resolve-Path "$PSScriptRoot/../..").Path
 
         $EnginePath = Join-Path `
             $ModuleRoot `

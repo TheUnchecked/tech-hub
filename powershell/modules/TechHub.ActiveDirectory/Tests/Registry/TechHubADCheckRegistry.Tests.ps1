@@ -2,14 +2,12 @@
 
 Set-StrictMode -Version Latest
 
-$TestFile = $MyInvocation.MyCommand.Path
-$TestRoot = Split-Path -Parent $PSScriptRoot
-$ModuleRoot = Split-Path -Parent $TestRoot
-$ModuleManifest = Join-Path $ModuleRoot 'TechHub.ActiveDirectory.psd1'
-
 Describe 'TechHubADCheckRegistry' {
 
     BeforeAll {
+
+        $ModuleRoot = (Resolve-Path "$PSScriptRoot/../..").Path
+        $ModuleManifest = Join-Path $ModuleRoot 'TechHub.ActiveDirectory.psd1'
 
         if (-not (Test-Path -LiteralPath $ModuleManifest -PathType Leaf)) {
             throw "TechHub.ActiveDirectory module manifest not found: $ModuleManifest"

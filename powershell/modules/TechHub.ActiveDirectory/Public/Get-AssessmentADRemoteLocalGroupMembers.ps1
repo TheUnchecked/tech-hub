@@ -38,6 +38,10 @@ function Get-AssessmentADRemoteLocalGroupMembers {
     .PARAMETER Credential
         Optional alternate credential.
 
+    .PARAMETER UseSSL
+        Requests the WSMan transport over HTTPS. Has no effect on the
+        DCOM fallback, which does not use WSMan.
+
     .OUTPUTS
         ComputerName
         GroupName
@@ -71,7 +75,10 @@ function Get-AssessmentADRemoteLocalGroupMembers {
         [string]$ComputerName,
 
         [Parameter()]
-        [System.Management.Automation.PSCredential]$Credential
+        [System.Management.Automation.PSCredential]$Credential,
+
+        [Parameter()]
+        [switch]$UseSSL
     )
 
     process {
@@ -89,6 +96,7 @@ function Get-AssessmentADRemoteLocalGroupMembers {
 
             $transportParams = @{
                 ComputerName = $ComputerName
+                UseSSL       = $UseSSL
 
                 ScriptBlock = {
 

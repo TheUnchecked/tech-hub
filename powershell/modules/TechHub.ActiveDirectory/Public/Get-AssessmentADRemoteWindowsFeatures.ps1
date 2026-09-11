@@ -30,6 +30,10 @@ function Get-AssessmentADRemoteWindowsFeatures {
     .PARAMETER Credential
         Optional alternate credential.
 
+    .PARAMETER UseSSL
+        Requests the WSMan transport over HTTPS for the WMI/DCOM
+        fallback path. Has no effect on the initial WinRM attempt.
+
     .OUTPUTS
         Normalized feature records.
     #>
@@ -52,7 +56,10 @@ function Get-AssessmentADRemoteWindowsFeatures {
         [string[]]$ComputerName,
 
         [Parameter()]
-        [System.Management.Automation.PSCredential]$Credential
+        [System.Management.Automation.PSCredential]$Credential,
+
+        [Parameter()]
+        [switch]$UseSSL
     )
 
     process {
@@ -209,30 +216,35 @@ function Get-AssessmentADRemoteWindowsFeatures {
 
             try {
 
-                $CimResult = & (Get-Module TechHub.ActiveDirectory) {
+                $CimQueryParams = @{
+                    ComputerName = $Computer
+                    UseSSL       = $UseSSL
+                    ScriptBlock  = {
 
-                    Invoke-AssessmentADRemoteCimQuery `
-                        -ComputerName $Computer `
-                        -Credential $Credential `
-                        -ScriptBlock {
+                        param(
+                            $Session
+                        )
 
-                            param(
-                                $Session
-                            )
-
-                            Get-CimInstance `
-                                -CimSession $Session `
-                                -ClassName Win32_OptionalFeature `
-                                -ErrorAction Stop |
-                            Where-Object {
-                                $_.InstallState -eq 1
-                            } |
-                            Select-Object `
-                                Name,
-                                Caption,
-                                InstallState
-                        }
+                        Get-CimInstance `
+                            -CimSession $Session `
+                            -ClassName Win32_OptionalFeature `
+                            -ErrorAction Stop |
+                        Where-Object {
+                            $_.InstallState -eq 1
+                        } |
+                        Select-Object `
+                            Name,
+                            Caption,
+                            InstallState
+                    }
                 }
+
+                if ($PSBoundParameters.ContainsKey('Credential')) {
+                    $CimQueryParams.Credential = $Credential
+                }
+
+                $CimResult = Invoke-AssessmentADRemoteCimQuery `
+                    @CimQueryParams
 
                 if (
                     $null -eq $CimResult -or
@@ -262,6 +274,12 @@ function Get-AssessmentADRemoteWindowsFeatures {
                 Write-Verbose `
                     "[$Computer] Windows Features collected through WMI/DCOM."
 
+                $CollectionMethod = 'WMI'
+
+                if ($CimResult.Transport -eq 'WSMan') {
+                    $CollectionMethod = 'WinRM'
+                }
+
                 $Features = @(
                     $CimResult.Data
                 )
@@ -273,7 +291,7 @@ function Get-AssessmentADRemoteWindowsFeatures {
                         FeatureName      = $null
                         Status           = 'Available'
                         DataAvailability = 'Available'
-                        CollectionMethod = 'WMI'
+                        CollectionMethod = $CollectionMethod
                         ErrorType        = $null
                         ErrorMessage     = $null
                         IsReadOnly       = $true
@@ -298,7 +316,7 @@ function Get-AssessmentADRemoteWindowsFeatures {
                         FeatureName      = [string]$Feature.Name
                         Status           = 'Available'
                         DataAvailability = 'Available'
-                        CollectionMethod = 'WMI'
+                        CollectionMethod = $CollectionMethod
                         ErrorType        = $null
                         ErrorMessage     = $null
                         IsReadOnly       = $true

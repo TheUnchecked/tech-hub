@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 Describe 'Get-AssessmentADRemoteLocalGroupMembers' {
 
     BeforeAll {
+        . "$PSScriptRoot\..\Private\Invoke-AssessmentADRemoteCimQuery.ps1"
         . "$PSScriptRoot\..\Public\Get-AssessmentADRemoteLocalGroupMembers.ps1"
 
         if (-not (Get-Command New-CimSession -ErrorAction SilentlyContinue)) {
@@ -44,11 +45,7 @@ Describe 'Get-AssessmentADRemoteLocalGroupMembers' {
     It 'returns local groups and members' {
 
         Mock New-CimSession {
-            throw 'Synthetic CIM session'
-        }
-
-        Mock New-CimSessionOption {
-            throw 'Synthetic CIM option'
+            [PSCustomObject]@{ Id = 'synthetic-session' }
         }
 
         Mock Get-CimInstance {
@@ -82,7 +79,25 @@ Describe 'Get-AssessmentADRemoteLocalGroupMembers' {
         )
 
         $result.Count |
-            Should -Be 0
+            Should -Be 1
+
+        $result[0].ComputerName |
+            Should -Be 'WEB01'
+
+        $result[0].GroupName |
+            Should -Be 'Administrators'
+
+        $result[0].GroupMembers.Count |
+            Should -Be 2
+
+        $result[0].GroupMembers.Member |
+            Should -Contain 'CONTOSO\Domain Admins'
+
+        $result[0].GroupMembers.Member |
+            Should -Contain 'CONTOSO\svc-admin'
+
+        $result[0].Status |
+            Should -Be 'Available'
     }
 
     It 'handles CIM connection failure' {
@@ -95,20 +110,23 @@ Describe 'Get-AssessmentADRemoteLocalGroupMembers' {
             throw 'Synthetic DCOM failure'
         }
 
-        $errors = @()
-
         $result = @(
             Get-AssessmentADRemoteLocalGroupMembers `
                 -ComputerName 'WEB01' `
-                -ErrorVariable errors `
                 -ErrorAction SilentlyContinue
         )
 
         $result.Count |
-            Should -Be 0
+            Should -Be 1
 
-        $errors.Count |
-            Should -BeGreaterThan 0
+        $result[0].Status |
+            Should -Be 'NotAvailable'
+
+        $result[0].ErrorType |
+            Should -Be 'RemoteTransportUnavailable'
+
+        $result[0].GroupMembers |
+            Should -BeNullOrEmpty
     }
 
     It 'supports pipeline input' {
@@ -121,18 +139,17 @@ Describe 'Get-AssessmentADRemoteLocalGroupMembers' {
             throw 'Synthetic DCOM failure'
         }
 
-        $errors = @()
-
-        @(
-            'WEB01','WEB02' |
+        $result = @(
+            'WEB01', 'WEB02' |
             Get-AssessmentADRemoteLocalGroupMembers `
-                -ErrorVariable errors `
                 -ErrorAction SilentlyContinue
-        ) |
-            Should -HaveCount 0
+        )
 
-        $errors.Count |
-            Should -BeGreaterThan 0
+        $result.Count |
+            Should -Be 2
+
+        $result.Status |
+            Should -Contain 'NotAvailable'
     }
 
     It 'is read-only' {

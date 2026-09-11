@@ -30,6 +30,10 @@ function Get-AssessmentADRemoteOSInfo {
     .PARAMETER Credential
         Optional alternate credential.
 
+    .PARAMETER UseSSL
+        Requests the WSMan transport over HTTPS. Has no effect on the
+        DCOM fallback, which does not use WSMan.
+
     .OUTPUTS
         ComputerName
         OSCaption
@@ -64,7 +68,10 @@ function Get-AssessmentADRemoteOSInfo {
         [string]$ComputerName,
 
         [Parameter()]
-        [System.Management.Automation.PSCredential]$Credential
+        [System.Management.Automation.PSCredential]$Credential,
+
+        [Parameter()]
+        [switch]$UseSSL
     )
 
     process {
@@ -75,12 +82,12 @@ function Get-AssessmentADRemoteOSInfo {
         try {
 
             # ====================================================
-            # CIM REMOTE QUERY
+            # CIM REMOTE QUERY (shared read-only transport helper)
             # ====================================================
 
-            $InvokeParams = @{
+            $CimQueryParams = @{
                 ComputerName = $ComputerName
-                ErrorAction  = 'Stop'
+                UseSSL       = $UseSSL
                 ScriptBlock  = {
                     param(
                         $Session
@@ -106,38 +113,11 @@ function Get-AssessmentADRemoteOSInfo {
                 )
             ) {
 
-                $InvokeParams.Credential = $Credential
+                $CimQueryParams.Credential = $Credential
             }
 
-            # ====================================================
-            # USE INTERNAL CIM TRANSPORT HELPER
-            # ====================================================
-
-            $TransportResult = & (
-                Get-Module TechHub.ActiveDirectory
-            ) {
-
-                Invoke-AssessmentADRemoteCimQuery `
-                    -ComputerName $ComputerName `
-                    -Credential $Credential `
-                    -ScriptBlock {
-                        param(
-                            $Session
-                        )
-
-                        Get-CimInstance `
-                            -CimSession $Session `
-                            -ClassName Win32_OperatingSystem `
-                            -ErrorAction Stop |
-                        Select-Object `
-                            CSName,
-                            Caption,
-                            Version,
-                            BuildNumber,
-                            OperatingSystemSKU,
-                            ProductType
-                    }
-            }
+            $TransportResult = Invoke-AssessmentADRemoteCimQuery `
+                @CimQueryParams
 
             # ====================================================
             # TRANSPORT FAILURE
