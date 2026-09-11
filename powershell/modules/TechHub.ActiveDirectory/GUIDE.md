@@ -394,44 +394,169 @@ Export-AssessmentADAssessmentHtml -Assessment $Assessment -Path .\report.html
 
 ---
 
-## 6. Scenari d'uso tipici
+## 6. Guida: come lanciare i vari assessment
 
-### Assessment completo "a 360°" con un comando solo (consigliato)
+Questa sezione risponde a "come lancio l'assessment che mi serve", dal più
+completo (un comando) al più granulare (una singola funzione). Scegli il
+livello in base a quanto controllo ti serve: più scendi, più devi comporre
+tu i pezzi, ma più puoi restringere cosa viene eseguito.
+
+```
+Livello 1  Invoke-AssessmentADFullAssessment      → tutto, un comando, un report
+Livello 2  Invoke-AssessmentADAssessment           → solo i check di sicurezza AD
+Livello 3  Invoke-AssessmentADRemoteAssessment /
+           Invoke-AssessmentADRemoteLocalGroups    → solo l'infrastruttura remota
+Livello 4  Get-AssessmentAD<Check> /
+           Get-AssessmentADRemote<Collector>       → una singola funzione
+```
+
+In ogni sezione: import del modulo omesso per brevità (fallo una volta
+all'inizio della sessione con `Import-Module .\TechHub.ActiveDirectory.psd1 -Force`).
+
+---
+
+### 6.1 Livello 1 — Assessment completo (consigliato per iniziare)
+
+Un comando solo: esegue tutti gli 11 check di sicurezza AD, raccoglie i dati
+infrastrutturali dai computer remoti e scrive un unico report HTML.
+
 ```powershell
-Import-Module .\TechHub.ActiveDirectory.psd1 -Force
-
 $Result = Invoke-AssessmentADFullAssessment -Server dc01.example.test
 
-$Result.ReportPath          # dove è stato scritto il report HTML
+$Result.ReportPath          # percorso del report HTML scritto
 $Result.Assessment.Summary  # riepilogo rapido a schermo
 ```
 
-### Solo l'assessment di sicurezza AD, con export manuale (più controllo)
-```powershell
-Import-Module .\TechHub.ActiveDirectory.psd1 -Force
+Varianti:
 
+```powershell
+# Computer specifici invece della discovery automatica, e path del report a scelta
+Invoke-AssessmentADFullAssessment -Server dc01.example.test -ComputerName 'srv01','srv02' -OutputPath .\report.html
+
+# Solo i client, non i server
+Invoke-AssessmentADFullAssessment -Server dc01.example.test -TargetType Client
+
+# Solo i check di sicurezza AD, senza contattare nessuna macchina remota
+Invoke-AssessmentADFullAssessment -Server dc01.example.test -SkipRemoteAssessment
+```
+
+Usa questo livello quando: è la prima volta, vuoi un report da consegnare,
+non ti serve scegliere singolarmente cosa girare.
+
+---
+
+### 6.2 Livello 2 — Solo l'assessment di sicurezza Active Directory
+
+Usa `Invoke-AssessmentADAssessment` quando ti interessano solo i check AD
+(delegazione, Kerberos, password policy, ACL, gruppi privilegiati), senza
+toccare macchine remote. Utile per un giro veloce o per integrare l'output
+in un tuo script.
+
+**Tutti i check:**
+```powershell
 $Assessment = Invoke-AssessmentADAssessment -Server dc01.example.test
 
 $Assessment.Summary
 $Assessment.Findings | Format-Table CheckId, Severity, Title -AutoSize
-
-Export-AssessmentADAssessmentHtml -Assessment $Assessment -Path .\report.html
 ```
 
-### Solo assessment infrastrutturale remoto su un gruppo di server
+**Una sola categoria** (`Delegation`, `Kerberos`, `Authentication`, `PrivilegedAccess`):
+```powershell
+Invoke-AssessmentADAssessment -Server dc01.example.test -Category 'Kerberos'
+```
+
+**Un solo check**, per CheckId — utile per validare una correzione o fare un
+controllo mirato:
+```powershell
+Invoke-AssessmentADAssessment -Server dc01.example.test -CheckId 'AD-DCSYNC-RIGHTS'
+```
+
+CheckId disponibili: `AD-UNCONSTRAINED-DELEGATION`, `AD-CONSTRAINED-DELEGATION`,
+`AD-RBCD`, `AD-KERBEROASTING`, `AD-ASREP-ROASTING`, `AD-KRBTGT-PASSWORD-AGE`,
+`AD-PASSWORD-POLICY`, `AD-DCSYNC-RIGHTS`, `AD-SHADOW-ADMIN`,
+`AD-PRIVILEGED-GROUP`, `AD-REMOTE-LOCAL-GROUPS` (l'elenco esatto:
+`(New-AssessmentADCheckRegistry).GetAll() | Format-Table CheckId, Category`).
+
+**Esportazione manuale** (quando non usi il wrapper di Livello 1):
+```powershell
+Export-AssessmentADAssessmentHtml -Assessment $Assessment -Path .\report.html
+Export-AssessmentADAssessmentJson -Assessment $Assessment -Path .\report.json
+Export-AssessmentADAssessmentCsv  -Assessment $Assessment -Path .\report.csv
+```
+
+Usa questo livello quando: ti interessa solo la parte AD, vuoi filtrare per
+categoria/check, o vuoi gestire tu l'export.
+
+---
+
+### 6.3 Livello 3 — Solo l'assessment infrastrutturale remoto
+
+Usa questo livello quando vuoi i dati raccolti dai computer Windows senza
+rieseguire i check AD.
+
+**Tutti i collector su una lista di computer, uniti in un solo assessment**
+(la prima chiamata con `-Assessment $null` ne crea uno nuovo; le successive
+lo riusano e accumulano i dati):
+```powershell
+$Assessment = $null
+
+foreach ($Computer in 'srv01', 'srv02') {
+    $Assessment = Invoke-AssessmentADRemoteAssessment -ComputerName $Computer -Assessment $Assessment
+}
+
+Export-AssessmentADAssessmentHtml -Assessment $Assessment -Path .\report-remoto.html
+```
+
+**Tutti i collector su computer scoperti automaticamente in AD:**
 ```powershell
 $Provider = New-AssessmentADProvider -Server dc01.example.test
+$Targets = Get-AssessmentADRemoteTargets -Provider $Provider -TargetType Server
+$Assessment = $null
 
+foreach ($Target in $Targets) {
+    $Assessment = Invoke-AssessmentADRemoteAssessment -ComputerName $Target.ComputerName -Assessment $Assessment
+}
+```
+
+**Solo alcuni collector** (valori validi: `ServiceAccounts`, `ScheduledTasks`,
+`IISAppPools`, `LocalGroups`, `NetworkShares`, `OSInfo`, `WindowsFeatures`):
+```powershell
+Invoke-AssessmentADRemoteAssessment -ComputerName 'srv01' -Collector 'OSInfo', 'WindowsFeatures'
+```
+
+**Solo i gruppi locali, su più computer scoperti da AD** (scorciatoia dedicata,
+non passa dagli altri collector):
+```powershell
 Invoke-AssessmentADRemoteLocalGroups -Provider $Provider -TargetType Server |
     Where-Object { $_.GroupName -eq 'Administrators' }
 ```
 
-### Singolo collector, per debug/verifica in lab
+Usa questo livello quando: i check AD sono già stati fatti (o non ti servono
+ora), e vuoi solo il quadro infrastrutturale, magari su un sottoinsieme di
+macchine.
+
+---
+
+### 6.4 Livello 4 — Una singola funzione (debug, verifica mirata)
+
+Ogni check e ogni collector è comunque richiamabile da solo. È il livello
+più usato durante il debug in laboratorio, per isolare un problema.
+
+**Un singolo check di sicurezza AD:**
+```powershell
+Get-AssessmentADKerberoasting -Server dc01.example.test -Verbose
+```
+
+**Un singolo collector remoto:**
 ```powershell
 Get-AssessmentADRemoteOSInfo -ComputerName 'srv01' -Verbose
 ```
-`-Verbose` è utile in laboratorio per vedere quale transport è stato usato
-(WinRM/WSMan o WMI/DCOM) e dove eventualmente fallisce.
+`-Verbose` mostra quale trasporto è stato usato (WinRM/WSMan o WMI/DCOM) e
+dove eventualmente fallisce — il primo strumento di diagnosi quando un
+collector non ritorna niente.
+
+Usa questo livello quando: un check/collector specifico si comporta in modo
+strano e vuoi isolarlo, oppure ti serve solo quel dato puntuale.
 
 ---
 
