@@ -665,6 +665,11 @@ I test usano mock/oggetti sintetici: non serve un dominio AD reale né
 macchine Windows reali per farli passare. Sono complementari, non
 sostitutivi, ai test in laboratorio su infrastruttura vera.
 
+Per la validazione in laboratorio contro un dominio AD e computer Windows
+reali, segui **[LAB-TESTING-CHECKLIST.md](./LAB-TESTING-CHECKLIST.md)**:
+un elenco puntuale di ogni comando da lanciare, a cosa serve, il risultato
+atteso e il tipo di report che produce.
+
 ## 8. Limitazioni note
 
 - `Get-AssessmentADRemoteOSInfo` dichiara `WindowsInstallationType` nel
