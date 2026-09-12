@@ -1,4 +1,4 @@
-# TechHub.ActiveDirectory - Pester issue
+# Assessment.ActiveDirectory - Pester issue
 
 Provider test isolato:
 19/19 PASS.
@@ -12,10 +12,10 @@ Il commit attuale è:
 0569250 fix: move AD provider reads to mockable module scope
 
 Il nuovo helper è:
-powershell/modules/TechHub.ActiveDirectory/Private/Invoke-TechHubADProviderReads.ps1
+powershell/modules/Assessment.ActiveDirectory/Private/Invoke-AssessmentADProviderReads.ps1
 
 Il provider è:
-powershell/modules/TechHub.ActiveDirectory/Providers/ActiveDirectory/TechHubADProvider.ps1
+powershell/modules/Assessment.ActiveDirectory/Providers/ActiveDirectory/AssessmentADProvider.ps1
 
 Analizzare perché i test passano isolatamente ma falliscono nella suite completa.
 

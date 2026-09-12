@@ -1,8 +1,8 @@
-# TechHub.ActiveDirectory - Copilot Instructions
+# Assessment.ActiveDirectory - Copilot Instructions
 
 ## Project
 
-TechHub.ActiveDirectory is a reusable PowerShell 5.1 framework for
+Assessment.ActiveDirectory is a reusable PowerShell 5.1 framework for
 read-only Active Directory Security Assessment and Remote Windows Assessment.
 
 The project must remain modular, reusable and safe.
@@ -157,7 +157,7 @@ Do not introduce alternative finding schemas without a strong reason.
 
 The assessment engine uses:
 
-TechHubADAssessmentResult
+AssessmentADAssessmentResult
 
 Do not break the existing result contract.
 
@@ -175,7 +175,7 @@ The result contains:
 
 AD checks may use:
 
-TechHubADProvider
+AssessmentADProvider
 
 Remote checks should use the existing remote transport helpers.
 
@@ -345,7 +345,7 @@ Do not approve code simply because it works in one environment.
 
 ## Development Philosophy
 
-TechHub.ActiveDirectory is a framework, not a monolithic script.
+Assessment.ActiveDirectory is a framework, not a monolithic script.
 
 New functionality should normally be implemented as:
 
