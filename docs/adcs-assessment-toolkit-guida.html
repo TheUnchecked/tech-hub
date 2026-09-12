@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADCS Assessment Toolkit</title>
+<meta name="description" content="Guida completa al toolkit PowerShell di sola lettura per l'assessment di conformità di una CA Microsoft ADCS: architettura, uso, output e checklist di tutti i controlli.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{ color-scheme: light dark; }
+  html{ -webkit-text-size-adjust:100%; }
+  img{ max-width:100%; }
+  [hidden]{ display:none!important; }
+  :root{
+    --bg:#eef1ee;
+    --surface:#ffffff;
+    --surface-2:#e3e8e3;
+    --ink:#182320;
+    --ink-muted:#52625c;
+    --border:#cfd8d0;
+    --accent:#8a6b26;
+    --accent-strong:#6b5220;
+    --accent-soft:#f1e6c9;
+    --code-bg:#0d120f;
+    --code-fg:#d9c88f;
+    --code-dim:#7c8a80;
+    --code-accent:#e7c15a;
+    --status-ok:#2f6b46;
+    --status-ok-bg:#e2f0e6;
+    --status-na:#4d5f6c;
+    --status-na-bg:#e7ebee;
+    --status-warn:#a04a1c;
+    --status-warn-bg:#f7e7da;
+    --shadow: 0 1px 2px rgba(20,30,25,.06), 0 8px 24px -12px rgba(20,30,25,.18);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1512;
+      --surface:#161f1b;
+      --surface-2:#1d2822;
+      --ink:#e8ece8;
+      --ink-muted:#9db0a6;
+      --border:#2b3831;
+      --accent:#d3ac52;
+      --accent-strong:#eccb7d;
+      --accent-soft:#2b2412;
+      --code-bg:#0a0d0a;
+      --code-fg:#e3d29c;
+      --code-dim:#6f7c73;
+      --code-accent:#f0cd6e;
+      --status-ok:#6bc98c;
+      --status-ok-bg:#173423;
+      --status-na:#9db3c2;
+      --status-na-bg:#1c2a33;
+      --status-warn:#e69a5c;
+      --status-warn-bg:#3a2515;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1512;
+    --surface:#161f1b;
+    --surface-2:#1d2822;
+    --ink:#e8ece8;
+    --ink-muted:#9db0a6;
+    --border:#2b3831;
+    --accent:#d3ac52;
+    --accent-strong:#eccb7d;
+    --accent-soft:#2b2412;
+    --code-bg:#0a0d0a;
+    --code-fg:#e3d29c;
+    --code-dim:#6f7c73;
+    --code-accent:#f0cd6e;
+    --status-ok:#6bc98c;
+    --status-ok-bg:#173423;
+    --status-na:#9db3c2;
+    --status-na-bg:#1c2a33;
+    --status-warn:#e69a5c;
+    --status-warn-bg:#3a2515;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px -14px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size:14px;
+    line-height:1.6;
+    padding-inline:20px;
+  }
+  h1,h2,h3{
+    font-family:"Spectral", Georgia, "Times New Roman", serif;
+    font-weight:600;
+    text-wrap:balance;
+    color:var(--ink);
+  }
+  code, .mono, .idc, .cmd, td.num{
+    font-family:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  td.num, .idc{ font-variant-numeric: tabular-nums; }
+  a{ color:var(--accent-strong); }
+  .wrap{ max-width:920px; margin-inline:auto; }
+
+  /* ---------- Masthead ---------- */
+  .masthead{
+    padding-block:56px 40px;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:.72rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+  }
+  h1.title{
+    font-size:clamp(2rem, 5vw, 2.85rem);
+    line-height:1.08;
+    margin:.4em 0 .3em;
+  }
+  .lede{
+    font-size:1.08rem;
+    color:var(--ink-muted);
+    max-width:62ch;
+    margin:0 0 26px;
+  }
+  .facts{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .fact{
+    border:1px solid var(--border);
+    background:var(--surface);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:.82rem;
+    color:var(--ink-muted);
+    display:flex;
+    gap:6px;
+    align-items:baseline;
+  }
+  .fact b{ color:var(--ink); font-family:"IBM Plex Mono",monospace; font-size:.9rem; }
+
+  .masthead-row{
+    display:flex;
+    gap:32px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .masthead-main{ flex:1 1 420px; min-width:0; }
+
+  /* the wax-seal badge */
+  .seal{
+    flex:0 0 auto;
+    width:150px; height:150px;
+    border-radius:50%;
+    border:2px solid var(--accent);
+    outline:1px dashed var(--accent);
+    outline-offset:6px;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center;
+    color:var(--accent-strong);
+    font-family:"IBM Plex Mono", monospace;
+    letter-spacing:.06em;
+    background:var(--accent-soft);
+  }
+  .seal .l1{ font-size:.62rem; letter-spacing:.16em; opacity:.85; }
+  .seal .l2{ font-size:.95rem; font-weight:600; margin-block:3px; }
+  .seal .l3{ font-size:.62rem; letter-spacing:.16em; opacity:.85; }
+
+  /* ---------- Nav ---------- */
+  nav.toc{
+    position:sticky; top:0;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:saturate(140%) blur(6px);
+    border-bottom:1px solid var(--border);
+    z-index:10;
+    margin-inline:-20px;
+    padding-inline:20px;
+  }
+  nav.toc .wrap{
+    display:flex; gap:6px; overflow-x:auto;
+    padding-block:10px;
+    scrollbar-width:thin;
+  }
+  nav.toc a{
+    flex:0 0 auto;
+    font-size:.82rem;
+    text-decoration:none;
+    color:var(--ink-muted);
+    padding:6px 11px;
+    border-radius:999px;
+    border:1px solid transparent;
+    white-space:nowrap;
+  }
+  nav.toc a:hover{ border-color:var(--border); color:var(--ink); }
+
+  /* ---------- Sections ---------- */
+  section{ padding-block:44px; border-bottom:1px solid var(--border); }
+  section:last-of-type{ border-bottom:none; }
+  .section-head{ margin-bottom:26px; }
+  .section-num{
+    font-family:"IBM Plex Mono",monospace;
+    color:var(--accent);
+    font-size:.78rem;
+    letter-spacing:.1em;
+  }
+  h2{ font-size:1.7rem; margin:.15em 0 .3em; }
+  h3{ font-size:1.15rem; margin:1.6em 0 .5em; }
+  p{ max-width:70ch; }
+  .col-wrap{ max-width:70ch; }
+
+  .callout{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+    border-radius:10px;
+    padding:16px 18px;
+    box-shadow:var(--shadow);
+    margin-block:20px;
+  }
+  .callout p{ margin:0; max-width:66ch; }
+  .callout p + p{ margin-top:.6em; }
+
+  /* ---------- Terminal blocks ---------- */
+  .term{
+    background:var(--code-bg);
+    color:var(--code-fg);
+    border-radius:10px;
+    padding:16px 18px;
+    overflow-x:auto;
+    box-shadow:var(--shadow);
+    font-size:.86rem;
+  }
+  .term .caption{
+    color:var(--code-dim);
+    font-size:.74rem;
+    margin-bottom:8px;
+    letter-spacing:.04em;
+  }
+  .term pre{ margin:0; white-space:pre; }
+  .term .flag{ color:var(--code-accent); }
+  .term .cmt{ color:var(--code-dim); }
+
+  /* ---------- Cards / grid ---------- */
+  .grid{ display:grid; gap:16px; }
+  .grid-2{ grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+  }
+  .card h4{
+    margin:0 0 8px;
+    font-family:"Spectral",serif;
+    font-size:1.05rem;
+  }
+  .card p{ margin:0; font-size:.92rem; color:var(--ink-muted); }
+  .card .tag{
+    display:inline-block;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.7rem;
+    letter-spacing:.06em;
+    color:var(--accent-strong);
+    background:var(--accent-soft);
+    border-radius:5px;
+    padding:2px 7px;
+    margin-bottom:8px;
+  }
+
+  /* ---------- Tables ---------- */
+  .tbl-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+  table{ border-collapse:collapse; width:100%; font-size:.87rem; min-width:560px; }
+  thead th{
+    text-align:left; font-family:"IBM Plex Mono",monospace; font-weight:600;
+    font-size:.72rem; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink-muted);
+    background:var(--surface-2);
+    padding:10px 12px;
+    position:sticky; top:0;
+  }
+  tbody td{ padding:10px 12px; border-top:1px solid var(--border); vertical-align:top; }
+  tbody tr:nth-child(odd){ background:color-mix(in srgb, var(--surface-2) 35%, transparent); }
+  td.idc{ color:var(--accent-strong); white-space:nowrap; font-size:.82rem; }
+
+  /* ---------- Badges ---------- */
+  .badge{
+    display:inline-flex; align-items:center; gap:5px;
+    font-family:"IBM Plex Mono",monospace; font-size:.72rem;
+    padding:2px 8px; border-radius:999px; white-space:nowrap;
+  }
+  .badge::before{ content:""; width:6px; height:6px; border-radius:50%; }
+  .badge.ok{ color:var(--status-ok); background:var(--status-ok-bg); }
+  .badge.ok::before{ background:var(--status-ok); }
+  .badge.na{ color:var(--status-na); background:var(--status-na-bg); }
+  .badge.na::before{ background:var(--status-na); }
+  .badge.warn{ color:var(--status-warn); background:var(--status-warn-bg); }
+  .badge.warn::before{ background:var(--status-warn); }
+
+  /* ---------- Diagrams ---------- */
+  figure.diagram{ margin:24px 0 8px; }
+  figure.diagram svg{ max-width:100%; height:auto; display:block; color:var(--ink); }
+  figure.diagram .accent{ color:var(--accent); }
+  figcaption{
+    font-size:.82rem; color:var(--ink-muted); margin-top:10px; max-width:70ch;
+  }
+  svg text{ font-family:"IBM Plex Mono", monospace; }
+
+  /* ---------- Checklist accordions ---------- */
+  details.prog{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    margin-bottom:12px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  details.prog summary{
+    cursor:pointer;
+    padding:16px 20px;
+    display:flex; align-items:center; gap:14px;
+    list-style:none;
+  }
+  details.prog summary::-webkit-details-marker{ display:none; }
+  details.prog summary .no{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:1.1rem; color:var(--accent-strong);
+    min-width:2.2em;
+  }
+  details.prog summary .name{ font-weight:600; flex:1 1 auto; }
+  details.prog summary .count{
+    font-family:"IBM Plex Mono",monospace; font-size:.76rem; color:var(--ink-muted);
+  }
+  details.prog summary .chev{
+    font-size:.8rem; color:var(--ink-muted); transition:transform .15s ease;
+  }
+  details.prog[open] summary .chev{ transform:rotate(90deg); }
+  details.prog .body{ padding:0 20px 20px; }
+  details.prog .purpose{ color:var(--ink-muted); font-size:.92rem; margin:-6px 0 14px; max-width:68ch; }
+
+  /* ---------- Params reference ---------- */
+  dl.params{ display:grid; grid-template-columns:auto 1fr; gap:6px 18px; font-size:.9rem; }
+  dl.params dt{ font-family:"IBM Plex Mono",monospace; color:var(--accent-strong); white-space:nowrap; }
+  dl.params dd{ margin:0; color:var(--ink-muted); }
+
+  footer{
+    padding-block:36px 60px;
+    color:var(--ink-muted);
+    font-size:.84rem;
+  }
+  footer .mono{ color:var(--ink-muted); }
+
+  @media (max-width:640px){
+    .masthead-row{ flex-direction:column-reverse; }
+    .seal{ width:120px; height:120px; }
+    h1.title{ font-size:1.7rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="wrap">
+    <div class="masthead-row">
+      <div class="masthead-main">
+        <div class="eyebrow">Guida di riferimento · Assessment di conformità PKI</div>
+        <h1 class="title">ADCS Assessment Toolkit</h1>
+        <p class="lede">Undici programmi PowerShell per raccogliere, in sola lettura, tutte le evidenze necessarie a un assessment di conformità su una Certification Authority Microsoft ADCS on-premise — dall'inventario della CA fino ai certificati emessi, alla revoca, ai ruoli e all'indurimento del sistema.</p>
+        <div class="facts">
+          <div class="fact"><b>11</b> programmi (00–10)</div>
+          <div class="fact"><b>45+</b> accertamenti puntuali</div>
+          <div class="fact"><b>PS 5.1 / 7.x</b> compatibilità</div>
+          <div class="fact"><b>Windows Server 2016+</b> target</div>
+          <div class="fact"><b>JSON / CSV</b> uscita</div>
+        </div>
+      </div>
+      <div class="seal" role="img" aria-label="Sigillo: impatto nessuno, sola lettura">
+        <div>
+          <div class="l1">IMPATTO</div>
+          <div class="l2">NESSUNO</div>
+          <div class="l3">SOLA LETTURA</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#panoramica">Panoramica</a>
+    <a href="#architettura">Architettura</a>
+    <a href="#uso">Come si usa</a>
+    <a href="#output">Cosa si ottiene</a>
+    <a href="#domini">I 4 domini</a>
+    <a href="#checklist">Checklist controlli</a>
+    <a href="#limiti">Limiti noti</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<section id="panoramica">
+  <div class="section-head">
+    <div class="section-num">01 — Panoramica</div>
+    <h2>Cosa fa, e cosa non fa</h2>
+  </div>
+  <p class="col-wrap">Il toolkit raccoglie <strong>evidenze</strong>, non giudizi. Ogni programma legge lo stato reale della CA — registro, database di emissione, Active Directory, registro eventi, sistema operativo — e lo trasforma in record strutturati e comparabili. Nessun programma decide se un valore è conforme o meno: quella valutazione avviene a valle, sui dati raccolti qui, da chi conduce l'assessment.</p>
+
+  <div class="callout">
+    <p><strong>Regola assoluta: sola lettura.</strong> Nessun cmdlet con verbo <code>Set</code>, <code>New</code>, <code>Remove</code>, <code>Add</code>, <code>Start</code>, <code>Stop</code>, <code>Enable</code>, <code>Disable</code>, <code>Import</code>, <code>Revoke</code> o simili. <code>certutil.exe</code> è usato solo in interrogazione (<code>-view</code>, <code>-getreg</code>, <code>-dump</code>, <code>-CAInfo</code>…) e ogni switch di scrittura noto è bloccato a livello di codice prima di ogni chiamata.</p>
+    <p>Nessuna cartella viene creata: <code>-PercorsoUscita</code> deve già esistere. Nessuna scrittura avviene fuori da quella cartella.</p>
+  </div>
+
+  <h3>Per chi è questa guida</h3>
+  <p class="col-wrap">Per chi conduce l'assessment (raccolta ed esecuzione) e per chi lo riceve (lettura dei report). La sezione <a href="#checklist">Checklist</a> serve da riferimento rapido durante l'esecuzione; la sezione <a href="#domini">I 4 domini</a> serve da mappa concettuale per capire perché i controlli sono raggruppati così.</p>
+</section>
+
+<section id="architettura">
+  <div class="section-head">
+    <div class="section-num">02 — Architettura</div>
+    <h2>Come i programmi si incastrano</h2>
+  </div>
+  <p class="col-wrap">Tutti i programmi condividono un unico motore, <code>Comune.ps1</code>, e un unico schema di uscita. Il programma <code>00</code> è un caso speciale: non produce evidenze di conformità, ma sonda empiricamente come si comporta <code>certutil -view</code> su questa specifica CA, e scrive il risultato in un file che <code>05</code>, <code>06</code> e <code>08</code> leggono prima di interrogare volumi grandi di dati.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 940 400" role="img" aria-label="Diagramma di flusso: il sistema esaminato viene interrogato dai programmi 01-10 tramite il motore condiviso Comune.ps1; il programma 00 scrive StrategiaPaginazione.json, letto da 05, 06 e 08; le uscite vengono scritte solo tramite Export-Evidenza nella cartella di uscita.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- Colonna A: sistema esaminato -->
+      <rect x="20" y="140" width="190" height="150" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+      <text x="115" y="165" text-anchor="middle" font-size="13" font-weight="600">Sistema esaminato</text>
+      <text x="115" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">certutil</text>
+      <text x="115" y="206" text-anchor="middle" font-size="11" opacity=".75">registro (CertSvc)</text>
+      <text x="115" y="224" text-anchor="middle" font-size="11" opacity=".75">Active Directory</text>
+      <text x="115" y="242" text-anchor="middle" font-size="11" opacity=".75">registro eventi</text>
+      <text x="115" y="260" text-anchor="middle" font-size="11" opacity=".75">SCHANNEL / servizi</text>
+
+      <!-- Colonna B alto: 00 -->
+      <rect x="270" y="20" width="210" height="70" rx="10" fill="none" stroke="currentColor" class="accent" stroke-width="1.6"/>
+      <text x="375" y="48" text-anchor="middle" font-size="13" font-weight="600" class="accent">00 · Verifica strategia</text>
+      <text x="375" y="66" text-anchor="middle" font-size="10.5" opacity=".75">sonda RequestId vs. data</text>
+      <text x="375" y="80" text-anchor="middle" font-size="10.5" opacity=".75">su intervalli ridotti</text>
+
+      <!-- json file -->
+      <rect x="270" y="115" width="210" height="50" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <text x="375" y="145" text-anchor="middle" font-size="11.5">StrategiaPaginazione.json</text>
+
+      <!-- Colonna B basso: motore + programmi -->
+      <rect x="270" y="205" width="210" height="150" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+      <text x="375" y="230" text-anchor="middle" font-size="13" font-weight="600">Programmi 01–10</text>
+      <text x="375" y="250" text-anchor="middle" font-size="10.5" opacity=".75">dot-source →</text>
+      <text x="375" y="266" text-anchor="middle" font-size="11" font-weight="600">Comune.ps1</text>
+      <text x="375" y="284" text-anchor="middle" font-size="10" opacity=".7">Format-RecordEvidenza</text>
+      <text x="375" y="299" text-anchor="middle" font-size="10" opacity=".7">Invoke-CertutilSolaLettura</text>
+      <text x="375" y="314" text-anchor="middle" font-size="10" opacity=".7">Get-DescrittoreSicurezzaCA</text>
+      <text x="375" y="329" text-anchor="middle" font-size="10" opacity=".7">Export-Evidenza</text>
+
+      <!-- Colonna C: uscite -->
+      <rect x="640" y="40" width="260" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <text x="770" y="65" text-anchor="middle" font-size="11.5">Evidenza_NN_*.json|csv</text>
+      <text x="770" y="82" text-anchor="middle" font-size="10" opacity=".7">record normalizzati</text>
+
+      <rect x="640" y="140" width="260" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <text x="770" y="165" text-anchor="middle" font-size="11.5">Riepilogo_NN_*.json</text>
+      <text x="770" y="182" text-anchor="middle" font-size="10" opacity=".7">tentati / riusciti / falliti</text>
+
+      <rect x="640" y="240" width="260" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <text x="770" y="265" text-anchor="middle" font-size="11.5">Dettaglio_05_*.json|csv</text>
+      <text x="770" y="282" text-anchor="middle" font-size="10" opacity=".7">solo programma 05</text>
+
+      <!-- arrows -->
+      <line x1="210" y1="215" x2="266" y2="240" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+      <text x="200" y="205" font-size="10" opacity=".8">interroga · sola lettura</text>
+
+      <line x1="375" y1="90" x2="375" y2="113" stroke="currentColor" class="accent" stroke-width="1.4" marker-end="url(#arrow)"/>
+      <text x="382" y="105" font-size="10" class="accent">scrive</text>
+
+      <line x1="375" y1="165" x2="375" y2="203" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+      <text x="382" y="188" font-size="10" opacity=".8">letta da 05 · 06 · 08</text>
+
+      <line x1="480" y1="240" x2="636" y2="70" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="480" y1="270" x2="636" y2="170" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="480" y1="300" x2="636" y2="270" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="500" y="330" font-size="10" opacity=".8">Export-Evidenza — solo dentro -PercorsoUscita</text>
+    </svg>
+    <figcaption>Il sistema esaminato viene interrogato in sola lettura dai programmi 01–10 attraverso il motore condiviso <code>Comune.ps1</code>. Il programma 00 è un prerequisito trasversale: scrive la strategia di paginazione che 05, 06 e 08 leggono prima di interrogare volumi grandi. Ogni scrittura passa da <code>Export-Evidenza</code> e resta dentro la cartella di uscita.</figcaption>
+  </figure>
+</section>
+
+<section id="uso">
+  <div class="section-head">
+    <div class="section-num">03 — Come si usa</div>
+    <h2>Prerequisiti, ordine, esempi</h2>
+  </div>
+
+  <h3>Prerequisiti</h3>
+  <p class="col-wrap">PowerShell 5.1 o 7.x su Windows Server 2016 o successivo. <code>certutil.exe</code> disponibile (di serie sui sistemi con ruolo ADCS o con gli strumenti di amministrazione remota installati). Il modulo <code>ActiveDirectory</code> (RSAT) abilita gli accertamenti sui modelli/ACL/gruppi (03, 04, 07); senza di esso quegli accertamenti sono dichiarati "non verificabile", senza bloccare il resto. Diritto di lettura standard sulla CA — nessun ruolo di gestione richiesto per la sola raccolta.</p>
+
+  <h3>Ordine di esecuzione</h3>
+  <p class="col-wrap">Eseguire sempre <code>00</code> per primo. Gli altri nove programmi di controllo (01–04, 07, 09, 10) sono indipendenti tra loro; 05, 06 e 08 traggono beneficio dalla strategia scritta da 00 ma, se assente, eseguono da soli una prova rapida di ripiego.</p>
+
+  <div class="term">
+    <div class="caption">PowerShell — sequenza minima consigliata</div>
+    <pre><span class="cmt"># 1) sempre per primo: stabilisce la strategia di lettura del DB</span>
+.\00-VerificaStrategiaPaginazione.ps1 <span class="flag">-PercorsoUscita</span> C:\Evidenze\CA01
+
+<span class="cmt"># 2) inventario e configurazione — indipendenti, in qualunque ordine</span>
+.\01-InventarioCA.ps1 <span class="flag">-PercorsoUscita</span> C:\Evidenze\CA01
+.\02-ParametriConfigurazioneCA.ps1 <span class="flag">-PercorsoUscita</span> C:\Evidenze\CA01 <span class="flag">-Formato</span> CSV
+
+<span class="cmt"># 3) certificati emessi, con l'intera storia della CA (richiede conferma)</span>
+.\05-CertificatiEmessi.ps1 <span class="flag">-PercorsoUscita</span> C:\Evidenze\CA01 <span class="flag">-TuttiIRecord</span>
+
+<span class="cmt"># 4) revoca, includendo il conteggio delle voci CRL revocate</span>
+.\06-Revoca.ps1 <span class="flag">-PercorsoUscita</span> C:\Evidenze\CA01 <span class="flag">-MostraVociRevocate</span></pre>
+  </div>
+
+  <h3>Parametri comuni a (quasi) tutti i programmi</h3>
+  <dl class="params">
+    <dt>-PercorsoUscita</dt><dd>Obbligatorio. Cartella già esistente in cui scrivere le uscite. Nessun programma la crea.</dd>
+    <dt>-Formato</dt><dd><code>JSON</code> (predefinito) o <code>CSV</code>.</dd>
+    <dt>-Verboso</dt><dd>Attiva i messaggi <code>Write-Verbose</code> a video.</dd>
+    <dt>-ConfigCA</dt><dd>Stringa <code>"Server\NomeCA"</code> per interrogare una CA diversa da quella locale, dove l'accertamento lo consente.</dd>
+  </dl>
+
+  <h3>Parametri aggiuntivi del programma 05 (vincolo di prestazione)</h3>
+  <dl class="params">
+    <dt>-LimiteRecord</dt><dd>Predefinito 5000. Oltre questa soglia scatta il campionamento.</dd>
+    <dt>-DimensionePagina</dt><dd>Predefinito 1000. Ampiezza di ciascuna pagina di lettura.</dd>
+    <dt>-TuttiIRecord</dt><dd>Disattiva ogni limite. Richiede conferma digitata dopo un avviso esplicito sul carico atteso.</dd>
+    <dt>-DataInizio / -DataFine</dt><dd>Finestra temporale esplicita (NotBefore). Senza di essa si usano gli ultimi <code>-GiorniFinestraPredefinita</code> giorni (default 90).</dd>
+    <dt>-StrategiaCampionamento</dt><dd><code>UltimiPerData</code> (predefinito) o <code>StratificatoPerModello</code>.</dd>
+  </dl>
+</section>
+
+<section id="output">
+  <div class="section-head">
+    <div class="section-num">04 — Cosa si ottiene</div>
+    <h2>Report, JSON, CSV</h2>
+  </div>
+  <p class="col-wrap">Ogni programma scrive due file in <code>-PercorsoUscita</code>: <strong>Evidenza_NN_Nome</strong> (i record veri e propri) e <strong>Riepilogo_NN_Nome.json</strong> (quanti accertamenti sono stati tentati, riusciti, falliti, e i tempi). Il programma 05 scrive in più <strong>Dettaglio_05_CertificatiEmessi</strong> con l'elenco dei certificati analizzati.</p>
+
+  <h3>Lo schema di ogni record di evidenza</h3>
+  <p class="col-wrap">Otto campi, identici in ogni programma — è ciò che rende i risultati confrontabili e aggregabili a valle, indipendentemente da quale dei dieci controlli li ha prodotti.</p>
+
+  <div class="term">
+    <div class="caption">Evidenza_01_InventarioCA.json — un record reale (accertamento 01.03)</div>
+    <pre>{
+  <span class="flag">"IdControllo"</span>:      "01.03",
+  <span class="flag">"Dominio"</span>:          "InventarioCA",
+  <span class="flag">"Accertamento"</span>:     "Provider crittografico (CSP/KSP) e indicazione di presenza HSM (certutil -key)",
+  <span class="flag">"Valore"</span>:           { "IndicazioneHSM": true,
+                       "RigheProviderTrovate": ["Provider = nCipher Enhanced Cryptographic Provider"] },
+  <span class="flag">"Stato"</span>:            "rilevato",
+  <span class="flag">"DataOra"</span>:          "2026-09-15T09:41:12.0000000+02:00",
+  <span class="flag">"NomeHost"</span>:         "CA01",
+  <span class="flag">"Completezza"</span>:      "completo",
+  <span class="flag">"StrategiaLettura"</span>: "n/d"
+}</pre>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:22px">
+    <div class="card">
+      <div class="tag">Stato</div>
+      <h4>Cosa significano i tre valori</h4>
+      <p style="margin-top:10px"><span class="badge ok">rilevato</span> — il dato è stato letto con successo.</p>
+      <p style="margin-top:8px"><span class="badge na">non applicabile</span> — l'accertamento non riguarda questo contesto (es. store locale su una CA remota).</p>
+      <p style="margin-top:8px"><span class="badge warn">non verificabile</span> — nessun metodo di sola lettura affidabile ha funzionato: serve verifica manuale.</p>
+    </div>
+    <div class="card">
+      <div class="tag">Completezza</div>
+      <h4>completo vs. campionario</h4>
+      <p><code>completo</code>: tutti i record pertinenti sono stati letti. <code>campionario</code>: si è applicato un criterio di selezione (finestra temporale predefinita, o campionamento oltre <code>-LimiteRecord</code>) — il criterio esatto è sempre riportato nel valore del record.</p>
+    </div>
+  </div>
+</section>
+
+<section id="domini">
+  <div class="section-head">
+    <div class="section-num">05 — I quattro domini</div>
+    <h2>Perché i controlli sono raggruppati così</h2>
+  </div>
+  <p class="col-wrap">I dieci programmi di controllo rispondono a quattro domande diverse su una CA. Il programma 00 non risponde a nessuna di queste: è il prerequisito tecnico che rende sicura la lettura dei volumi grandi nei programmi che ne hanno bisogno.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 940 320" role="img" aria-label="Diagramma: il programma 00 è un prerequisito tecnico condiviso; i programmi 01-10 si dividono in quattro domini — Fondamenta e Identità, Governance e Accessi, Ciclo di Vita dei Certificati, Operatività e Continuità.">
+      <defs>
+        <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <rect x="270" y="20" width="400" height="60" rx="10" fill="none" class="accent" stroke="currentColor" stroke-width="1.6"/>
+      <text x="470" y="46" text-anchor="middle" font-size="13" font-weight="600" class="accent">00 · Prerequisito tecnico</text>
+      <text x="470" y="64" text-anchor="middle" font-size="10.5" opacity=".75">Strategia di paginazione del database CA</text>
+
+      <line x1="470" y1="80" x2="470" y2="112" stroke="currentColor" stroke-width="1.4"/>
+      <line x1="140" y1="112" x2="800" y2="112" stroke="currentColor" stroke-width="1.4"/>
+      <line x1="140" y1="112" x2="140" y2="156" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+      <line x1="360" y1="112" x2="360" y2="156" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+      <line x1="580" y1="112" x2="580" y2="156" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+      <line x1="800" y1="112" x2="800" y2="156" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+      <!-- 4 group cards -->
+      <rect x="40" y="160" width="200" height="140" rx="10" fill="none" stroke="currentColor" stroke-width="1.3"/>
+      <text x="140" y="184" text-anchor="middle" font-size="12" font-weight="600">Fondamenta</text>
+      <text x="140" y="200" text-anchor="middle" font-size="12" font-weight="600">e Identità</text>
+      <text x="140" y="226" text-anchor="middle" font-size="10.5" opacity=".8">01 · Inventario CA</text>
+      <text x="140" y="242" text-anchor="middle" font-size="10.5" opacity=".8">02 · Parametri config.</text>
+      <text x="140" y="268" text-anchor="middle" font-size="9.5" opacity=".65">Chi è la CA, com'è</text>
+      <text x="140" y="281" text-anchor="middle" font-size="9.5" opacity=".65">configurata alla base</text>
+
+      <rect x="260" y="160" width="200" height="140" rx="10" fill="none" stroke="currentColor" stroke-width="1.3"/>
+      <text x="360" y="184" text-anchor="middle" font-size="12" font-weight="600">Governance</text>
+      <text x="360" y="200" text-anchor="middle" font-size="12" font-weight="600">e Accessi</text>
+      <text x="360" y="222" text-anchor="middle" font-size="10.5" opacity=".8">03 · Modelli</text>
+      <text x="360" y="238" text-anchor="middle" font-size="10.5" opacity=".8">04 · Permessi</text>
+      <text x="360" y="254" text-anchor="middle" font-size="10.5" opacity=".8">07 · Ruoli e SoD</text>
+      <text x="360" y="278" text-anchor="middle" font-size="9.5" opacity=".65">Chi può fare cosa,</text>
+      <text x="360" y="291" text-anchor="middle" font-size="9.5" opacity=".65">e chi controlla chi</text>
+
+      <rect x="480" y="160" width="200" height="140" rx="10" fill="none" stroke="currentColor" stroke-width="1.3"/>
+      <text x="580" y="184" text-anchor="middle" font-size="12" font-weight="600">Ciclo di Vita</text>
+      <text x="580" y="200" text-anchor="middle" font-size="12" font-weight="600">dei Certificati</text>
+      <text x="580" y="226" text-anchor="middle" font-size="10.5" opacity=".8">05 · Emessi</text>
+      <text x="580" y="242" text-anchor="middle" font-size="10.5" opacity=".8">06 · Revoca</text>
+      <text x="580" y="268" text-anchor="middle" font-size="9.5" opacity=".65">Cosa produce la CA,</text>
+      <text x="580" y="281" text-anchor="middle" font-size="9.5" opacity=".65">e come si ritira</text>
+
+      <rect x="700" y="160" width="200" height="140" rx="10" fill="none" stroke="currentColor" stroke-width="1.3"/>
+      <text x="800" y="184" text-anchor="middle" font-size="12" font-weight="600">Operatività</text>
+      <text x="800" y="200" text-anchor="middle" font-size="12" font-weight="600">e Continuità</text>
+      <text x="800" y="222" text-anchor="middle" font-size="10.5" opacity=".8">08 · Eventi</text>
+      <text x="800" y="238" text-anchor="middle" font-size="10.5" opacity=".8">09 · Indurimento</text>
+      <text x="800" y="254" text-anchor="middle" font-size="10.5" opacity=".8">10 · Continuità</text>
+      <text x="800" y="278" text-anchor="middle" font-size="9.5" opacity=".65">Il sistema tiene, e</text>
+      <text x="800" y="291" text-anchor="middle" font-size="9.5" opacity=".65">se ne accorgerebbe</text>
+    </svg>
+    <figcaption>Quattro domini di assessment sotto un unico prerequisito tecnico condiviso (00). Ogni dominio risponde a una domanda diversa sulla CA; i programmi al suo interno condividono fonti e finalità.</figcaption>
+  </figure>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="tag">Dominio A</div>
+      <h4>Fondamenta e Identità — 01, 02</h4>
+      <p>Chi è questa CA (tipo, catena, algoritmo, HSM) e con quali parametri di base opera (durata CRL, periodo di validità, filtro di audit, policy di emissione). È il punto di partenza: senza sapere <em>cosa</em> è la CA, gli altri domini non hanno contesto.</p>
+    </div>
+    <div class="card">
+      <div class="tag">Dominio B</div>
+      <h4>Governance e Accessi — 03, 04, 07</h4>
+      <p>Chi può iscrivere certificati (modelli e loro ACL), chi può gestire la CA stessa, e se la separazione dei ruoli è tecnicamente applicata o solo sulla carta. Risponde alla domanda "chi controlla chi" attorno alla CA.</p>
+    </div>
+    <div class="card">
+      <div class="tag">Dominio C</div>
+      <h4>Ciclo di Vita dei Certificati — 05, 06</h4>
+      <p>Cosa la CA ha effettivamente emesso (profili, algoritmi, scadenze, algoritmi deboli) e come funziona la revoca (CRL, OCSP, freschezza). È il dominio più corposo: applica per intero il vincolo di prestazione e la paginazione.</p>
+    </div>
+    <div class="card">
+      <div class="tag">Dominio D</div>
+      <h4>Operatività e Continuità — 08, 09, 10</h4>
+      <p>Se l'attività della CA viene tracciata, se il sistema che la ospita è indurito, e se la CA sopravvivrebbe a un incidente. Risponde alla domanda "il sistema tiene, e se ne accorgerebbe se qualcosa andasse storto".</p>
+    </div>
+  </div>
+</section>
+
+<section id="checklist">
+  <div class="section-head">
+    <div class="section-num">06 — Checklist completa</div>
+    <h2>Tutti i controlli, programma per programma</h2>
+  </div>
+  <p class="col-wrap">Ogni riga è un <code>IdControllo</code> che compare identico nel campo omonimo dei record di evidenza. Aprire un programma per vedere i suoi accertamenti, il comando/cmdlet usato, e cosa restituisce.</p>
+
+  <!-- 00 -->
+  <details class="prog" id="p00">
+    <summary><span class="no">00</span><span class="name">VerificaStrategiaPaginazione</span><span class="count">6 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Prerequisito tecnico, non un controllo di conformità: stabilisce empiricamente come leggere in sicurezza il database di emissione su <em>questa</em> CA.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">00.01</td><td>Disponibilità e versione di certutil.exe / sistema operativo</td><td class="mono">Get-CimInstance Win32_OperatingSystem</td><td>Conferma che lo strumento di base esiste prima di procedere oltre.</td></tr>
+          <tr><td class="idc">00.02</td><td>Nome CA interrogata</td><td class="mono">certutil -getreg CA\CommonName</td><td>Quale CA si sta davvero leggendo (utile con <code>-ConfigCA</code>).</td></tr>
+          <tr><td class="idc">00.03</td><td>Formato data accettato da <code>-restrict</code></td><td>Prova 3 formati su una finestra di <code>-CampioneGiorni</code> giorni</td><td>La sintassi di data che funziona su questa versione di Windows Server.</td></tr>
+          <tr><td class="idc">00.04 / 00.04a</td><td>Restrizione per intervallo di RequestId</td><td class="mono">certutil -view -restrict "RequestId>=X,RequestId<=Y"</td><td>Se la paginazione per ID richiesta è affidabile qui.</td></tr>
+          <tr><td class="idc">00.05</td><td>Effetto della selezione colonne (<code>-out</code>)</td><td>Confronto tempi/byte con e senza colonne ristrette</td><td>Quanto si risparmia restringendo le colonne richieste.</td></tr>
+          <tr><td class="idc">00.06</td><td>Strategia di paginazione raccomandata</td><td>Sintesi delle prove precedenti</td><td>Scrive <code>StrategiaPaginazione.json</code>, letto da 05/06/08.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 01 -->
+  <details class="prog" id="p01">
+    <summary><span class="no">01</span><span class="name">InventarioCA</span><span class="count">6 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Identità, tipo, catena, algoritmo e lunghezza chiave, provider crittografico ed evidenza di HSM.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">01.01</td><td>Tipo di CA (radice o subordinata)</td><td class="mono">certutil -CAInfo</td><td>Il ruolo della CA nella gerarchia di fiducia.</td></tr>
+          <tr><td class="idc">01.01b</td><td>Uscita integrale di <code>-CAInfo</code></td><td>Testo grezzo conservato</td><td>Riferimento per riscontro manuale.</td></tr>
+          <tr><td class="idc">01.02</td><td>Nome comune (CommonName) della CA</td><td class="mono">certutil -getreg CA\CommonName</td><td>Identità formale della CA.</td></tr>
+          <tr><td class="idc">01.03</td><td>Provider crittografico / indicazione HSM</td><td class="mono">certutil -key</td><td>Se le chiavi sono protette da un modulo hardware (ricerca testuale su nomi noti: nCipher, Luna, Thales…).</td></tr>
+          <tr><td class="idc">01.04 / 01.05</td><td>Certificato CA: algoritmo, lunghezza chiave, validità (solo CA locale)</td><td>Registro <code>CACertHash</code> + <code>Cert:\LocalMachine\My</code></td><td>Robustezza crittografica e finestra di validità della CA stessa.</td></tr>
+          <tr><td class="idc">01.06</td><td>Catena di certificazione</td><td class="mono">X509Chain (RevocationMode: NoCheck)</td><td>Gerarchia di fiducia costruita offline — nessuna chiamata di rete (la revoca è compito di 06).</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 02 -->
+  <details class="prog" id="p02">
+    <summary><span class="no">02</span><span class="name">ParametriConfigurazioneCA</span><span class="count">11 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">I parametri di registro che governano frequenza di pubblicazione CRL, durata dei certificati emessi e cosa viene tracciato/consentito in emissione.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">02.01–02.02</td><td>CRLPeriod / CRLPeriodUnits</td><td class="mono">certutil -getreg CA\CRLPeriod[Units]</td><td>Ogni quanto viene pubblicata la CRL base.</td></tr>
+          <tr><td class="idc">02.03–02.04</td><td>CRLDeltaPeriod / Units</td><td class="mono">certutil -getreg CA\CRLDeltaPeriod[Units]</td><td>Ogni quanto la CRL delta.</td></tr>
+          <tr><td class="idc">02.05–02.06</td><td>CRLOverlapPeriod / Units</td><td class="mono">certutil -getreg CA\CRLOverlapPeriod[Units]</td><td>Margine di sovrapposizione tra CRL successive.</td></tr>
+          <tr><td class="idc">02.07–02.08</td><td>ValidityPeriod / Units</td><td class="mono">certutil -getreg CA\ValidityPeriod[Units]</td><td>Durata predefinita dei certificati emessi.</td></tr>
+          <tr><td class="idc">02.09</td><td>AuditFilter</td><td class="mono">certutil -getreg CA\AuditFilter</td><td>Quali categorie di eventi la CA registra.</td></tr>
+          <tr><td class="idc">02.10</td><td>EditFlags (policy di emissione)</td><td class="mono">certutil -getreg Policy\EditFlags</td><td>Flag di comportamento del modulo policy predefinito.</td></tr>
+          <tr><td class="idc">02.11</td><td>EnforceX500NameLengths</td><td>Prova due percorsi di registro noti</td><td>"Non verificabile" se nessuno dei due risponde (percorso non documentato con certezza univoca).</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 03 -->
+  <details class="prog" id="p03">
+    <summary><span class="no">03</span><span class="name">ModelliCertificato</span><span class="count">3 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Quali modelli esistono, quali sono davvero abilitati su questa CA, e i loro flag di iscrizione/chiave privata.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">03.01</td><td>Modelli abilitati su questa CA</td><td class="mono">certutil -CATemplates</td><td>Cosa è realmente utilizzabile qui — non tutti i modelli della foresta.</td></tr>
+          <tr><td class="idc">03.02</td><td>Elenco generale dei modelli noti</td><td class="mono">certutil -Template</td><td>Vista più ampia per confronto.</td></tr>
+          <tr><td class="idc">03.03</td><td>Dettaglio per singolo modello</td><td class="mono">Get-ADObject su CN=Certificate Templates…</td><td>Chiave privata esportabile, approvazione manager richiesta, autoiscrizione abilitata, firme RA richieste (decodifica di <code>msPKI-Enrollment-Flag</code> / <code>msPKI-Private-Key-Flag</code>).</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 04 -->
+  <details class="prog" id="p04">
+    <summary><span class="no">04</span><span class="name">PermessiModelliECA</span><span class="count">2 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Chi può iscriversi/autoiscriversi per ciascun modello, e chi ha i diritti di gestione sulla CA stessa.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">04.01</td><td>ACL di ciascun modello</td><td><code>nTSecurityDescriptor</code> + GUID Enroll/Autoenroll</td><td>Elenco di chi può iscriversi e chi può autoiscriversi, modello per modello.</td></tr>
+          <tr><td class="idc">04.02</td><td>Descrittore di sicurezza della CA</td><td class="mono">CertificateAuthority.Admin → GetCASecurity</td><td>Chi ha "Manage CA" e chi ha "Issue and Manage Certificates".</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 05 -->
+  <details class="prog" id="p05">
+    <summary><span class="no">05</span><span class="name">CertificatiEmessi</span><span class="count">3 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Il programma più corposo: applica per intero il vincolo di prestazione a due passate (leggera, poi di dettaglio paginata).</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">05.01</td><td>Popolazione di riferimento e criterio di selezione</td><td>Passata leggera: <code>RequestID, CertificateTemplate, NotBefore</code></td><td>Conteggio nella finestra interrogata e come sono stati scelti i record da analizzare (tutti, o campione).</td></tr>
+          <tr><td class="idc">05.02</td><td>Lettura di una pagina di dettaglio</td><td>certutil -view per intervallo di RequestId, incl. <code>RawCertificate</code></td><td>Algoritmo di firma, lunghezza chiave, SAN, numero di serie — ricavati parsando il certificato stesso.</td></tr>
+          <tr><td class="idc">05.03</td><td>Riepilogo dei certificati analizzati</td><td>Aggregazione in memoria</td><td>Conteggio per modello, algoritmi deboli, scaduti non revocati.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 06 -->
+  <details class="prog" id="p06">
+    <summary><span class="no">06</span><span class="name">Revoca</span><span class="count">6 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Dove la CA pubblica CRL/AIA, se sono raggiungibili, e quanto è fresca la CRL corrente.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">06.01</td><td>Punti di distribuzione CRL (CDP) configurati</td><td class="mono">certutil -getreg CA\CRLPublicationURLs</td><td>Dove la CA pubblica le CRL (file locale, LDAP, HTTP).</td></tr>
+          <tr><td class="idc">06.02</td><td>Punti di pubblicazione del certificato CA (AIA)</td><td class="mono">certutil -getreg CA\CACertPublicationURLs</td><td>Dove i client trovano il certificato della CA.</td></tr>
+          <tr><td class="idc">06.03</td><td>Raggiungibilità di rete di base</td><td class="mono">Test-NetConnection</td><td>Se la porta degli endpoint HTTP/LDAP configurati è raggiungibile.</td></tr>
+          <tr><td class="idc">06.04</td><td>Recupero del certificato CA corrente</td><td class="mono">certutil -ca.cert</td><td>Base per la validazione successiva (scritto solo in <code>-PercorsoUscita</code>).</td></tr>
+          <tr><td class="idc">06.05</td><td>Metadati della CRL corrente</td><td class="mono">certutil -ca.crl + certutil -dump</td><td>Data di emissione, prossimo aggiornamento, freschezza — mai l'elenco delle revoche, salvo <code>-MostraVociRevocate</code>.</td></tr>
+          <tr><td class="idc">06.06</td><td>Validazione catena/CDP/AIA/OCSP</td><td class="mono">certutil -verify -urlfetch</td><td>Il riscontro end-to-end che otterrebbe davvero un client.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 07 -->
+  <details class="prog" id="p07">
+    <summary><span class="no">07</span><span class="name">RuoliESeparazioneCompiti</span><span class="count">4 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Chi gestisce davvero la CA, e se la separazione dei ruoli è tecnicamente applicata.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">07.01</td><td>Titolari dei ruoli CA</td><td>Riusa <code>Get-DescrittoreSicurezzaCA</code></td><td>Chi può gestire la CA o i certificati emessi.</td></tr>
+          <tr><td class="idc">07.02</td><td>RoleSeparationEnabled</td><td class="mono">certutil -getreg CA\RoleSeparationEnabled</td><td>Se la separazione dei ruoli è forzata dal sistema, non solo di prassi.</td></tr>
+          <tr><td class="idc">07.03</td><td>Amministratori locali dell'host</td><td class="mono">Get-LocalGroupMember Administrators</td><td>Chi ha comunque accesso completo alla macchina, a prescindere dai ruoli CA.</td></tr>
+          <tr><td class="idc">07.04</td><td>Espansione ricorsiva dei gruppi con ruoli</td><td class="mono">Get-ADGroupMember -Recursive</td><td>Chi c'è davvero dentro ai gruppi titolari — nessun nome di gruppo indovinato in anticipo.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 08 -->
+  <details class="prog" id="p08">
+    <summary><span class="no">08</span><span class="name">RegistrazioneEventi</span><span class="count">5 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Cosa la CA registra, per quanto tempo, e se sta davvero accadendo.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">08.01</td><td>AuditFilter della CA</td><td class="mono">certutil -getreg CA\AuditFilter</td><td>Cosa la CA è configurata per registrare.</td></tr>
+          <tr><td class="idc">08.02</td><td>Policy di audit OS dettagliata</td><td>—</td><td><span class="badge warn">non verificabile</span> per costruzione: richiederebbe <code>auditpol.exe</code>, escluso da questa raccolta.</td></tr>
+          <tr><td class="idc">08.03</td><td>Dimensione e conservazione dei registri</td><td class="mono">Get-WinEvent -ListLog</td><td>Se i log sopravvivono abbastanza a lungo per un'indagine.</td></tr>
+          <tr><td class="idc">08.04</td><td>Sincronizzazione oraria</td><td>Stato servizio w32time + sorgente NTP da registro</td><td>Se i timestamp nei log sono affidabili (nessuno stato di sync effettivo: richiederebbe <code>w32tm.exe</code>).</td></tr>
+          <tr><td class="idc">08.05</td><td>Campione di eventi di audit ADCS</td><td class="mono">Get-WinEvent (ID 4886–4898), finestra + -MaxEventi</td><td>Prova concreta che l'audit sta accadendo, non solo che è abilitato.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 09 -->
+  <details class="prog" id="p09">
+    <summary><span class="no">09</span><span class="name">IndurimentoSistema</span><span class="count">5 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">La postura di sicurezza del sistema operativo che ospita la CA.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">09.01</td><td>Servizi in esecuzione</td><td class="mono">Get-CimInstance Win32_Service</td><td>Superficie di attacco esposta dal sistema.</td></tr>
+          <tr><td class="idc">09.02</td><td>Porte TCP in ascolto</td><td class="mono">Get-NetTCPConnection -State Listen</td><td>Cosa è raggiungibile dalla rete, con il processo proprietario.</td></tr>
+          <tr><td class="idc">09.03</td><td>Aggiornamenti installati</td><td class="mono">Get-HotFix</td><td>Postura di patching (con il limite noto di copertura del cmdlet, dichiarato nel record).</td></tr>
+          <tr><td class="idc">09.04</td><td>Protocolli/cifrari TLS (SCHANNEL)</td><td>Registro <code>HKLM\...\SCHANNEL</code></td><td>Se protocolli/cifrari deboli sono ancora abilitati esplicitamente.</td></tr>
+          <tr><td class="idc">09.05</td><td>Appartenenza a dominio</td><td class="mono">Get-CimInstance Win32_ComputerSystem</td><td>Contesto Active Directory dell'host.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <!-- 10 -->
+  <details class="prog" id="p10">
+    <summary><span class="no">10</span><span class="name">Continuita</span><span class="count">3 accertamenti</span><span class="chev">▸</span></summary>
+    <div class="body">
+      <p class="purpose">Se la CA sopravvivrebbe a un incidente.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>ID</th><th>Accertamento</th><th>Comando / metodo</th><th>Cosa restituisce</th></tr></thead>
+        <tbody>
+          <tr><td class="idc">10.01</td><td>Stato del servizio CertSvc</td><td class="mono">Get-Service CertSvc</td><td>Se la CA è operativa in questo momento.</td></tr>
+          <tr><td class="idc">10.02</td><td>Evidenza di backup (Windows Server Backup)</td><td class="mono">Get-WBSummary / Get-WBJob</td><td>Backup recenti — solo se questo è lo strumento in uso (assenza ≠ nessun backup).</td></tr>
+          <tr><td class="idc">10.03</td><td>Procedure documentate di DR/ripristino</td><td>—</td><td><span class="badge warn">non verificabile</span> per natura: da intervista o ispezione manuale.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+</section>
+
+<section id="limiti">
+  <div class="section-head">
+    <div class="section-num">07 — Limiti noti</div>
+    <h2>Cosa questo toolkit non può dirti da solo</h2>
+  </div>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4>Policy di audit OS e sincronizzazione oraria effettiva</h4>
+      <p>Richiederebbero <code>auditpol.exe</code> e <code>w32tm.exe</code>, binari esterni non-PowerShell esclusi da questa raccolta. Verificare con intervista o ispezione manuale (08.02, 08.04).</p>
+    </div>
+    <div class="card">
+      <h4>Procedure documentate di continuità</h4>
+      <p>Non osservabile in modo affidabile da un programma. Da verificare con il personale responsabile (10.03).</p>
+    </div>
+    <div class="card">
+      <h4>EnforceX500NameLengths</h4>
+      <p>Percorso di registro non documentato con certezza univoca tra versioni. Il programma prova due posizioni note; se nessuna risponde, dichiara "non verificabile" invece di assumere (02.11).</p>
+    </div>
+    <div class="card">
+      <h4>Parsing dell'output di certutil -view</h4>
+      <p>Basato sul comportamento CSV comunemente noto, interpretato per posizione di colonna. <strong>Il toolkit non è mai stato eseguito contro una CA Windows reale</strong> (sviluppo su Linux, nessun ADCS disponibile): un primo run su una CA di test è fortemente raccomandato prima dell'uso in produzione.</p>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <p><span class="mono">Repository:</span> tech-hub · <span class="mono">percorso:</span> powershell/adcs-assessment-toolkit/</p>
+    <p>Questa guida descrive strumenti di raccolta evidenze. Nessun programma della raccolta esprime un giudizio di conformità: la valutazione avviene a valle, su questi dati.</p>
+  </div>
+</footer>
+
+</body>
+</html>
