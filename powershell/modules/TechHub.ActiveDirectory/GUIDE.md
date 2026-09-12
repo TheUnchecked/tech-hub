@@ -167,6 +167,84 @@ Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`,
 > `GetObjectSecurityDescriptor($Identity)`, che legge (mai scrive)
 > l'attributo `nTSecurityDescriptor` tramite `Get-ADObject`.
 
+#### `Get-AssessmentADStaleAccounts`
+Account utente/computer abilitati che non fanno logon da oltre una soglia configurabile (`lastLogonTimestamp`). Un account privilegiato stale è severità High, gli altri Medium.
+```powershell
+Get-AssessmentADStaleAccounts
+Get-AssessmentADStaleAccounts -StaleDays 180
+```
+Parametri: `-Server`, `-SearchBase`, `-Domain`, `-Forest`, `-DomainController`,
+`-StaleDays` (default 90), `-ExcludedAccountPatterns`, `-Provider`.
+
+#### `Get-AssessmentADPasswordNeverExpiresAccounts`
+Account con password che non scade mai (`DONT_EXPIRE_PASSWORD`).
+```powershell
+Get-AssessmentADPasswordNeverExpiresAccounts
+```
+Parametri: `-Server`, `-SearchBase`, `-Domain`, `-Forest`, `-DomainController`,
+`-ExcludedAccountPatterns`, `-Provider`.
+
+#### `Get-AssessmentADProtectedUsersCoverage`
+Membri di gruppi privilegiati (default: Domain Admins, Enterprise Admins) che non sono anche membri di `Protected Users`.
+```powershell
+Get-AssessmentADProtectedUsersCoverage
+Get-AssessmentADProtectedUsersCoverage -PrivilegedGroups 'Domain Admins', 'Tier0-Operators'
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`,
+`-PrivilegedGroups` (default `Domain Admins`, `Enterprise Admins`),
+`-ProtectedUsersGroupName` (default `Protected Users`), `-Provider`.
+
+#### `Get-AssessmentADRemoteAuthenticationHardening`
+Legge da remoto (via CIM, nessun PowerShell remoting) `LmCompatibilityLevel`, `NoLmHash` e (sui DC) `LDAPServerIntegrity`. Senza `-ComputerName`, scopre i domain controller automaticamente.
+```powershell
+Get-AssessmentADRemoteAuthenticationHardening
+Get-AssessmentADRemoteAuthenticationHardening -ComputerName 'dc01','dc02'
+```
+Parametri: `-ComputerName`, `-TargetType` (default `DomainController`),
+`-Credential`, `-UseSSL`, `-Server`, `-Provider`.
+
+#### `Get-AssessmentADRemoteCredentialGuardStatus`
+Verifica se virtualization-based security e Credential Guard sono attivi (CIM, classe `Win32_DeviceGuard`).
+```powershell
+Get-AssessmentADRemoteCredentialGuardStatus
+```
+Parametri: `-ComputerName`, `-TargetType` (default `DomainController`),
+`-Credential`, `-UseSSL`, `-Server`, `-Provider`.
+
+#### `Get-AssessmentADRemoteObsoleteOperatingSystem`
+Segnala computer con OS oltre l'end-of-support (riusa `Get-AssessmentADRemoteOSInfo`).
+```powershell
+Get-AssessmentADRemoteObsoleteOperatingSystem -TargetType All
+```
+Parametri: `-ComputerName`, `-TargetType` (default `All`),
+`-ObsoleteOSPatterns` (default: XP/Vista/7/8/Server 2003/2008/2012),
+`-Credential`, `-UseSSL`, `-Server`, `-Provider`.
+
+#### `Get-AssessmentADRemoteAuditPolicy`
+Esegue `auditpol /get` via WinRM e segnala le sottocategorie di sicurezza (Directory Service, Kerberos, Logon/Logoff, Credential Validation) impostate su "No Auditing".
+```powershell
+Get-AssessmentADRemoteAuditPolicy
+```
+Parametri: `-ComputerName`, `-TargetType` (default `DomainController`),
+`-AuditedSubcategories`, `-Credential`, `-Server`, `-Provider`.
+
+#### `Get-AssessmentADDNSZoneSecurity`
+Valuta le zone DNS AD-integrated: `DynamicUpdate` (flag se `NonsecureAndSecure`) e trasferimento di zona (flag se `TransferAnyServer`).
+
+> ⚠️ **Unica funzione del modulo che richiede il modulo `DnsServer`**, oltre ad `ActiveDirectory` — tipicamente disponibile solo su un DC che ospita anche il ruolo DNS. Se il modulo non è disponibile, il check ritorna `NotAvailable` in modo pulito (stesso pattern usato per `ActiveDirectory`).
+
+```powershell
+Get-AssessmentADDNSZoneSecurity
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`, `-Provider`.
+
+#### `Get-AssessmentADRecycleBinStatus`
+Verifica se la funzionalità AD Recycle Bin è abilitata (`Get-ADOptionalFeature`).
+```powershell
+Get-AssessmentADRecycleBinStatus
+```
+Parametri: `-Server`, `-Domain`, `-Forest`, `-DomainController`, `-Provider`.
+
 #### `Get-AssessmentADInventory`
 Inventario read-only di utenti, computer, gruppi, MSA/gMSA e OU, tramite il
 provider (nessun cmdlet AD invocato direttamente).
@@ -339,11 +417,19 @@ Non esegue nulla.
 $Registry = New-AssessmentADCheckRegistry
 $Registry.GetAll() | Format-Table CheckId, Name, Category, Enabled
 ```
-Check attualmente registrati: `AD-UNCONSTRAINED-DELEGATION`,
+Check attualmente registrati (20): `AD-UNCONSTRAINED-DELEGATION`,
 `AD-CONSTRAINED-DELEGATION`, `AD-RBCD`, `AD-KERBEROASTING`,
 `AD-ASREP-ROASTING`, `AD-KRBTGT-PASSWORD-AGE`, `AD-PASSWORD-POLICY`,
 `AD-DCSYNC-RIGHTS`, `AD-SHADOW-ADMIN`, `AD-PRIVILEGED-GROUP`,
-`AD-REMOTE-LOCAL-GROUPS`.
+`AD-REMOTE-LOCAL-GROUPS`, `AD-STALE-ACCOUNTS`, `AD-PASSWORD-NEVER-EXPIRES`,
+`AD-PROTECTED-USERS-COVERAGE`, `AD-AUTH-HARDENING`, `AD-CREDENTIAL-GUARD`,
+`AD-OBSOLETE-OS`, `AD-AUDIT-POLICY`, `AD-DNS-ZONE-SECURITY`,
+`AD-RECYCLE-BIN`.
+
+Categorie: `Delegation`, `Kerberos`, `Authentication`, `PrivilegedAccess`,
+`AccountHygiene`, `Hardening`, `AuditingAndLogging`, `DNS`,
+`DisasterRecovery`. L'area Group Policy (delega GPO, GPP password cache,
+igiene OU) è **esclusa per scelta** da questo registro.
 
 #### `Invoke-AssessmentADAssessment`
 Motore di orchestrazione: seleziona i check abilitati dal registry (con
@@ -460,10 +546,19 @@ $Assessment.Summary
 $Assessment.Findings | Format-Table CheckId, Severity, Title -AutoSize
 ```
 
-**Una sola categoria** (`Delegation`, `Kerberos`, `Authentication`, `PrivilegedAccess`):
+**Una sola categoria** (`Delegation`, `Kerberos`, `Authentication`,
+`PrivilegedAccess`, `AccountHygiene`, `Hardening`, `AuditingAndLogging`,
+`DNS`, `DisasterRecovery`):
 ```powershell
-Invoke-AssessmentADAssessment -Server dc01.example.test -Category 'Kerberos'
+Invoke-AssessmentADAssessment -Server dc01.example.test -Category 'Hardening'
 ```
+
+> Nota: alcuni check in `Hardening`, `AuditingAndLogging` e `AD-DNS-ZONE-SECURITY`
+> agiscono su computer remoti o richiedono il modulo `DnsServer` — se li lanci
+> tramite `Invoke-AssessmentADAssessment` senza indicare un target valido,
+> alcuni potrebbero non produrre risultati o segnalare `NotAvailable`. Per
+> questi conviene spesso chiamarli direttamente (Livello 4) con `-ComputerName`
+> esplicito.
 
 **Un solo check**, per CheckId — utile per validare una correzione o fare un
 controllo mirato:
@@ -576,3 +671,6 @@ sostitutivi, ai test in laboratorio su infrastruttura vera.
   proprio output ma non lo valorizza mai (sempre `$null`).
 - Nessuna pipeline CI nel repository: i test vanno eseguiti manualmente.
 - `Get-AssessmentADPrivilegedGroup` — vedi nota nella sezione 5.1.
+- `Get-AssessmentADRemoteAuditPolicy` fa il parsing dell'output CSV di `auditpol /get /r`, il cui formato può variare in base a lingua/versione del sistema operativo remoto. Validare in laboratorio prima di usarlo su larga scala.
+- `Get-AssessmentADDNSZoneSecurity` richiede il modulo `DnsServer` (non incluso in `ActiveDirectory`), tipicamente presente solo su un DC che ospita anche il ruolo DNS.
+- L'area Group Policy (delega GPO, GPP password cache, igiene OU/link) è **esclusa per scelta** dal registro dei check.

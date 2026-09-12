@@ -42,6 +42,7 @@ function ConvertTo-TechHubADProviderObject {
 
         PasswordLastSet          = $null
         'msDS-SupportedEncryptionTypes' = $null
+        LastLogonTimestamp       = $null
     }
 
     foreach ($PropertyName in @($Values.Keys)) {
@@ -191,6 +192,21 @@ function ConvertTo-TechHubADProviderObject {
                 }
             }
 
+            'LastLogonTimestamp' {
+
+                try {
+
+                    $Values[$PropertyName] = `
+                        [datetime]$Property.Value
+                }
+                catch {
+
+                    Write-Verbose `
+                        -Message `
+                        'Provider received an invalid LastLogonTimestamp.'
+                }
+            }
+
             # ------------------------------------------------
             # OS attributes
             # ------------------------------------------------
@@ -286,5 +302,7 @@ function ConvertTo-TechHubADProviderObject {
 
         'msDS-SupportedEncryptionTypes' = `
             $Values.'msDS-SupportedEncryptionTypes'
+
+        LastLogonTimestamp       = $Values.LastLogonTimestamp
     }
 }

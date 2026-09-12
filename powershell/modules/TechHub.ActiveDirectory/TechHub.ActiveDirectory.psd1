@@ -29,6 +29,15 @@
     'Get-AssessmentADPasswordPolicy'
     'Get-AssessmentADDCSyncRights'
     'Get-AssessmentADShadowAdminRights'
+    'Get-AssessmentADStaleAccounts'
+    'Get-AssessmentADPasswordNeverExpiresAccounts'
+    'Get-AssessmentADProtectedUsersCoverage'
+    'Get-AssessmentADRemoteAuthenticationHardening'
+    'Get-AssessmentADRemoteCredentialGuardStatus'
+    'Get-AssessmentADRemoteObsoleteOperatingSystem'
+    'Get-AssessmentADRemoteAuditPolicy'
+    'Get-AssessmentADDNSZoneSecurity'
+    'Get-AssessmentADRecycleBinStatus'
 
     # ------------------------------------------------------------
     # Remote assessment collectors

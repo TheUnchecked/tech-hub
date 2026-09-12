@@ -39,7 +39,7 @@ Describe 'TechHubADCheckRegistry' {
         }
     }
 
-    It 'registers all eleven current checks' {
+    It 'registers all twenty current checks' {
 
         $Registry = New-AssessmentADCheckRegistry
 
@@ -47,40 +47,33 @@ Describe 'TechHubADCheckRegistry' {
             Should -Not -BeNullOrEmpty
 
         $Registry.GetAll().Count |
-            Should -Be 11
+            Should -Be 20
 
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADUnconstrainedDelegation'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADConstrainedDelegation'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADRBCD'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADKerberoasting'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADASREPRoasting'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADKrbtgtPasswordAge'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADPasswordPolicy'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADDCSyncRights'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADShadowAdminRights'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADPrivilegedGroup'
-
-        $Registry.GetAll().FunctionName |
-            Should -Contain 'Get-AssessmentADRemoteLocalGroups'
+        @(
+            'Get-AssessmentADUnconstrainedDelegation'
+            'Get-AssessmentADConstrainedDelegation'
+            'Get-AssessmentADRBCD'
+            'Get-AssessmentADKerberoasting'
+            'Get-AssessmentADASREPRoasting'
+            'Get-AssessmentADKrbtgtPasswordAge'
+            'Get-AssessmentADPasswordPolicy'
+            'Get-AssessmentADDCSyncRights'
+            'Get-AssessmentADShadowAdminRights'
+            'Get-AssessmentADPrivilegedGroup'
+            'Get-AssessmentADRemoteLocalGroups'
+            'Get-AssessmentADStaleAccounts'
+            'Get-AssessmentADPasswordNeverExpiresAccounts'
+            'Get-AssessmentADProtectedUsersCoverage'
+            'Get-AssessmentADRemoteAuthenticationHardening'
+            'Get-AssessmentADRemoteCredentialGuardStatus'
+            'Get-AssessmentADRemoteObsoleteOperatingSystem'
+            'Get-AssessmentADRemoteAuditPolicy'
+            'Get-AssessmentADDNSZoneSecurity'
+            'Get-AssessmentADRecycleBinStatus'
+        ) | ForEach-Object {
+            $Registry.GetAll().FunctionName |
+                Should -Contain $_
+        }
 
         $Registry.GetAll().FunctionName |
             Should -Not -Contain 'Get-AssessmentADTrustedToAuth'
@@ -104,7 +97,7 @@ Describe 'TechHubADCheckRegistry' {
         $Registry = New-AssessmentADCheckRegistry
 
         @($Registry.GetAll()).Count |
-            Should -Be 11
+            Should -Be 20
     }
 
     It 'finds definitions by category' {
@@ -122,6 +115,21 @@ Describe 'TechHubADCheckRegistry' {
 
         @($Registry.FindByCategory('Authentication')).Count |
             Should -Be 1
+
+        @($Registry.FindByCategory('AccountHygiene')).Count |
+            Should -Be 2
+
+        @($Registry.FindByCategory('Hardening')).Count |
+            Should -Be 4
+
+        @($Registry.FindByCategory('AuditingAndLogging')).Count |
+            Should -Be 1
+
+        @($Registry.FindByCategory('DNS')).Count |
+            Should -Be 1
+
+        @($Registry.FindByCategory('DisasterRecovery')).Count |
+            Should -Be 1
     }
 
     It 'finds definitions by provider' {
@@ -133,7 +141,7 @@ Describe 'TechHubADCheckRegistry' {
         )
 
         $Definitions.Count |
-            Should -Be 10
+            Should -Be 19
     }
 
     It 'returns null for an unknown CheckId' {
@@ -156,7 +164,7 @@ Describe 'TechHubADCheckRegistry' {
         )
 
         $EnabledDefinitions.Count |
-            Should -Be 11
+            Should -Be 20
     }
 
     It 'preserves read-only metadata' {
@@ -273,37 +281,32 @@ Describe 'TechHubADCheckRegistry' {
             $Registry.GetAll().CheckId
         )
 
-        $Ids[0] |
-            Should -Be 'AD-UNCONSTRAINED-DELEGATION'
+        $ExpectedOrder = @(
+            'AD-UNCONSTRAINED-DELEGATION'
+            'AD-CONSTRAINED-DELEGATION'
+            'AD-RBCD'
+            'AD-KERBEROASTING'
+            'AD-ASREP-ROASTING'
+            'AD-KRBTGT-PASSWORD-AGE'
+            'AD-PASSWORD-POLICY'
+            'AD-DCSYNC-RIGHTS'
+            'AD-SHADOW-ADMIN'
+            'AD-PRIVILEGED-GROUP'
+            'AD-REMOTE-LOCAL-GROUPS'
+            'AD-STALE-ACCOUNTS'
+            'AD-PASSWORD-NEVER-EXPIRES'
+            'AD-PROTECTED-USERS-COVERAGE'
+            'AD-AUTH-HARDENING'
+            'AD-CREDENTIAL-GUARD'
+            'AD-OBSOLETE-OS'
+            'AD-AUDIT-POLICY'
+            'AD-DNS-ZONE-SECURITY'
+            'AD-RECYCLE-BIN'
+        )
 
-        $Ids[1] |
-            Should -Be 'AD-CONSTRAINED-DELEGATION'
-
-        $Ids[2] |
-            Should -Be 'AD-RBCD'
-
-        $Ids[3] |
-            Should -Be 'AD-KERBEROASTING'
-
-        $Ids[4] |
-            Should -Be 'AD-ASREP-ROASTING'
-
-        $Ids[5] |
-            Should -Be 'AD-KRBTGT-PASSWORD-AGE'
-
-        $Ids[6] |
-            Should -Be 'AD-PASSWORD-POLICY'
-
-        $Ids[7] |
-            Should -Be 'AD-DCSYNC-RIGHTS'
-
-        $Ids[8] |
-            Should -Be 'AD-SHADOW-ADMIN'
-
-        $Ids[9] |
-            Should -Be 'AD-PRIVILEGED-GROUP'
-
-        $Ids[10] |
-            Should -Be 'AD-REMOTE-LOCAL-GROUPS'
+        for ($Index = 0; $Index -lt $ExpectedOrder.Count; $Index++) {
+            $Ids[$Index] |
+                Should -Be $ExpectedOrder[$Index]
+        }
     }
 }

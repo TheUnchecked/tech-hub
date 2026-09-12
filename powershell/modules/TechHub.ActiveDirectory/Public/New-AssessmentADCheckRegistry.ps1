@@ -172,6 +172,152 @@ function New-AssessmentADCheckRegistry {
                 'ReadOnly'
             )
         )
+
+        # ============================================================
+        # ACCOUNT HYGIENE
+        # ============================================================
+
+        [TechHubADCheckDefinition]::new(
+            'AD-STALE-ACCOUNTS',
+            'Stale Active Directory Accounts',
+            'Detects enabled user and computer accounts that have not logged on within a configurable threshold.',
+            'AccountHygiene',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADStaleAccounts',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'AccountHygiene', 'ReadOnly')
+        )
+
+        [TechHubADCheckDefinition]::new(
+            'AD-PASSWORD-NEVER-EXPIRES',
+            'Password Never Expires',
+            'Detects accounts configured so their password never expires, prioritizing privileged accounts.',
+            'AccountHygiene',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADPasswordNeverExpiresAccounts',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'AccountHygiene', 'ReadOnly')
+        )
+
+        # ============================================================
+        # HARDENING
+        # ============================================================
+
+        [TechHubADCheckDefinition]::new(
+            'AD-PROTECTED-USERS-COVERAGE',
+            'Protected Users Coverage',
+            'Detects privileged group members who are not also members of the Protected Users group.',
+            'Hardening',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADProtectedUsersCoverage',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'Hardening', 'ReadOnly')
+        )
+
+        [TechHubADCheckDefinition]::new(
+            'AD-AUTH-HARDENING',
+            'Legacy Authentication Hardening',
+            'Evaluates LmCompatibilityLevel, LM hash storage, and LDAP signing on remote Windows computers (domain controllers by default).',
+            'Hardening',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADRemoteAuthenticationHardening',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'Hardening', 'RemoteAssessment', 'ReadOnly')
+        )
+
+        [TechHubADCheckDefinition]::new(
+            'AD-CREDENTIAL-GUARD',
+            'Credential Guard Status',
+            'Evaluates whether virtualization-based security and Credential Guard are running on remote Windows computers (domain controllers by default).',
+            'Hardening',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADRemoteCredentialGuardStatus',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'Hardening', 'RemoteAssessment', 'ReadOnly')
+        )
+
+        [TechHubADCheckDefinition]::new(
+            'AD-OBSOLETE-OS',
+            'Obsolete Operating System',
+            'Flags remote Windows computers running an operating system past its mainstream end-of-support date.',
+            'Hardening',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADRemoteObsoleteOperatingSystem',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'Hardening', 'RemoteAssessment', 'ReadOnly')
+        )
+
+        # ============================================================
+        # AUDITING AND LOGGING
+        # ============================================================
+
+        [TechHubADCheckDefinition]::new(
+            'AD-AUDIT-POLICY',
+            'Advanced Audit Policy Coverage',
+            'Evaluates whether security-relevant Advanced Audit Policy subcategories are enabled on remote Windows computers (domain controllers by default).',
+            'AuditingAndLogging',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADRemoteAuditPolicy',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'AuditingAndLogging', 'RemoteAssessment', 'ReadOnly')
+        )
+
+        # ============================================================
+        # DNS
+        # ============================================================
+
+        [TechHubADCheckDefinition]::new(
+            'AD-DNS-ZONE-SECURITY',
+            'DNS Zone Security',
+            'Evaluates dynamic update and zone transfer settings of AD-integrated DNS zones. Requires the DnsServer module in addition to ActiveDirectory.',
+            'DNS',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADDNSZoneSecurity',
+            @('TechHubADProvider'),
+            @('ActiveDirectory', 'DnsServer'),
+            @('Security', 'DNS', 'ReadOnly')
+        )
+
+        # ============================================================
+        # DISASTER RECOVERY
+        # ============================================================
+
+        [TechHubADCheckDefinition]::new(
+            'AD-RECYCLE-BIN',
+            'Active Directory Recycle Bin',
+            'Reports whether the Active Directory Recycle Bin optional feature is enabled.',
+            'DisasterRecovery',
+            '1.0.0',
+            $true,
+            $true,
+            'Get-AssessmentADRecycleBinStatus',
+            @('TechHubADProvider'),
+            @('ActiveDirectory'),
+            @('Security', 'DisasterRecovery', 'ReadOnly')
+        )
     )
 
     foreach ($Definition in $Definitions) {

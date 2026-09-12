@@ -123,6 +123,14 @@ Describe 'TechHubADProvider' {
             )
         }
 
+        function global:Get-ADOptionalFeature {
+            param(
+                [string]$Filter,
+                [string]$Server,
+                [string]$ErrorAction
+            )
+        }
+
         # ============================================================
         # IMPORT MODULE
         # ============================================================
@@ -172,6 +180,11 @@ Describe 'TechHubADProvider' {
 
         Remove-Item `
             Function:\Get-ADFineGrainedPasswordPolicy `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        Remove-Item `
+            Function:\Get-ADOptionalFeature `
             -Force `
             -ErrorAction SilentlyContinue
 
@@ -265,6 +278,11 @@ Describe 'TechHubADProvider' {
             ComplexityEnabled = $true
         }
 
+        $Script:OptionalFeature = [PSCustomObject]@{
+            Name          = 'Recycle Bin Feature'
+            EnabledScopes = @('DC=example,DC=test')
+        }
+
         # ============================================================
         # MOCK AVAILABILITY CHECK
         #
@@ -339,6 +357,14 @@ Describe 'TechHubADProvider' {
             -ModuleName TechHub.ActiveDirectory {
                 @(
                     $Script:FineGrainedPasswordPolicy
+                )
+            }
+
+        Mock `
+            Get-ADOptionalFeature `
+            -ModuleName TechHub.ActiveDirectory {
+                @(
+                    $Script:OptionalFeature
                 )
             }
     }
@@ -461,6 +487,26 @@ Describe 'TechHubADProvider' {
 
         $Result.Data[0].Name |
             Should -Be 'Tier0-PSO'
+
+        $Result.Status |
+            Should -Be 'Available'
+    }
+
+    # ================================================================
+    # 5cc
+    # ================================================================
+
+    It 'retrieves optional features' {
+
+        $Result = (
+            New-AssessmentADProvider
+        ).GetOptionalFeatures("Name -eq 'Recycle Bin Feature'")
+
+        $Result.Data[0].Name |
+            Should -Be 'Recycle Bin Feature'
+
+        $Result.Data[0].EnabledScopes |
+            Should -Contain 'DC=example,DC=test'
 
         $Result.Status |
             Should -Be 'Available'

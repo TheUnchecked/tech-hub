@@ -267,6 +267,31 @@ function Get-AssessmentADProviderObjectSecurityDescriptor {
     }
 }
 
+function Get-AssessmentADProviderOptionalFeatures {
+
+    [CmdletBinding()]
+    param(
+        [string]$Filter = '*',
+        [string]$Server
+    )
+
+    if (-not (Test-TechHubADProviderReadAvailability)) {
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
+    }
+
+    try {
+        $Parameters = @{ Filter = $Filter; ErrorAction = 'Stop' }
+        if (-not [string]::IsNullOrWhiteSpace($Server)) {
+            $Parameters.Server = $Server
+        }
+
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADOptionalFeature @Parameters)
+    }
+    catch {
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+    }
+}
+
 function Get-AssessmentADProviderGroupMembers {
 
     [CmdletBinding()]
