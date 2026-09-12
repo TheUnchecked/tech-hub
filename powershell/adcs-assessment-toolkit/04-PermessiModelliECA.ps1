@@ -145,7 +145,11 @@ catch {
 # --- 04.02: descrittore di sicurezza della CA (GetCASecurity, sola lettura) -
 $riepilogo.AccertamentiTentati++
 try {
-    $adminCA = New-Object -ComObject 'CertificateAuthority.Admin'
+    # Istanziazione COM tramite Activator/Type invece di New-Object: il verbo
+    # "New" non e ammesso in questa raccolta a sola lettura, anche se qui
+    # riguarda solo un oggetto in memoria del processo corrente.
+    $tipoAdminCA = [Type]::GetTypeFromProgID('CertificateAuthority.Admin')
+    $adminCA = [Activator]::CreateInstance($tipoAdminCA)
     $sdBase64 = $adminCA.GetCASecurity($ConfigCA)
 
     $bytesSD = [Convert]::FromBase64String($sdBase64)

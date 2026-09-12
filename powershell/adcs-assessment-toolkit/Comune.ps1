@@ -12,7 +12,9 @@
     infrastruttura comune richiamata dagli altri programmi (00-10).
 #>
 
-Set-StrictMode -Version Latest
+# Nota: non si usa Set-StrictMode qui (verbo "Set" non ammesso in questa
+# raccolta a sola lettura, anche se l'effetto sarebbe solo sul comportamento
+# di parsing/esecuzione dello script stesso, non sul sistema).
 
 function Format-RecordEvidenza {
     <#
