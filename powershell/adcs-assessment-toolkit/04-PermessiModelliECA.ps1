@@ -142,62 +142,27 @@ catch {
     $riepilogo.AccertamentiFalliti++
 }
 
-# --- 04.02: descrittore di sicurezza della CA (GetCASecurity, sola lettura) -
+# --- 04.02: descrittore di sicurezza della CA (funzione condivisa in Comune.ps1) -
 $riepilogo.AccertamentiTentati++
-try {
-    # Istanziazione COM tramite Activator/Type invece di New-Object: il verbo
-    # "New" non e ammesso in questa raccolta a sola lettura, anche se qui
-    # riguarda solo un oggetto in memoria del processo corrente.
-    $tipoAdminCA = [Type]::GetTypeFromProgID('CertificateAuthority.Admin')
-    $adminCA = [Activator]::CreateInstance($tipoAdminCA)
-    $sdBase64 = $adminCA.GetCASecurity($ConfigCA)
-
-    $bytesSD = [Convert]::FromBase64String($sdBase64)
-    $rawSD = [System.Security.AccessControl.RawSecurityDescriptor]::new($bytesSD, 0)
-
-    $DirittoManageCA = 0x1
-    $DirittoIssueManageCertificati = 0x2
-
-    $vociACL = [System.Collections.Generic.List[object]]::new()
-    $gestoriCA = [System.Collections.Generic.List[string]]::new()
-    $gestoriCertificati = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($ace in $rawSD.DiscretionaryAcl) {
-        $identita = $null
-        try { $identita = $ace.SecurityIdentifier.Translate([System.Security.Principal.NTAccount]).Value }
-        catch { $identita = $ace.SecurityIdentifier.Value }
-
-        $maschera = $ace.AccessMask
-        $vociACL.Add([PSCustomObject]@{
-                Identita       = $identita
-                AccessMaskEsadecimale = ('0x{0:X}' -f $maschera)
-                TipoACE        = $ace.AceType.ToString()
-                ManageCA       = [bool]($maschera -band $DirittoManageCA)
-                IssueManageCertificati = [bool]($maschera -band $DirittoIssueManageCertificati)
-            })
-
-        if (($maschera -band $DirittoManageCA) -and $ace.AceQualifier -eq 'AccessAllowed') { $gestoriCA.Add($identita) }
-        if (($maschera -band $DirittoIssueManageCertificati) -and $ace.AceQualifier -eq 'AccessAllowed') { $gestoriCertificati.Add($identita) }
-    }
+$esitoDescrittoreCA = Get-DescrittoreSicurezzaCA -ConfigCA $ConfigCA
+if ($esitoDescrittoreCA.Successo) {
+    $gestoriCA = @($esitoDescrittoreCA.Voci | Where-Object { $_.ManageCA } | Select-Object -ExpandProperty Identita -Unique)
+    $gestoriCertificati = @($esitoDescrittoreCA.Voci | Where-Object { $_.IssueManageCertificati } | Select-Object -ExpandProperty Identita -Unique)
 
     $recordEvidenza.Add((Format-RecordEvidenza -IdControllo '04.02' -Dominio 'PermessiCA' `
                 -Accertamento 'Descrittore di sicurezza della CA (chi gestisce la CA / chi gestisce i certificati)' `
                 -Valore ([PSCustomObject]@{
-                    GestoriCA           = @($gestoriCA | Sort-Object -Unique)
-                    GestoriCertificati  = @($gestoriCertificati | Sort-Object -Unique)
-                    TutteLeVociACL      = @($vociACL)
-                    Nota                = 'Bit ManageCA (0x1) e IssueManageCertificati (0x2) decodificati secondo i valori comunemente documentati per il descrittore di sicurezza CA ADCS; AccessMask grezzo riportato per riscontro.'
+                    GestoriCA          = $gestoriCA
+                    GestoriCertificati = $gestoriCertificati
+                    TutteLeVociACL     = $esitoDescrittoreCA.Voci
                 }) -Stato 'rilevato' -Completezza 'completo' -StrategiaLettura 'n/d'))
     $riepilogo.AccertamentiRiusciti++
 }
-catch {
+else {
     $recordEvidenza.Add((Format-RecordEvidenza -IdControllo '04.02' -Dominio 'PermessiCA' `
                 -Accertamento 'Descrittore di sicurezza della CA (GetCASecurity)' `
-                -Valore $_.Exception.Message -Stato 'non verificabile' -Completezza 'completo' -StrategiaLettura 'n/d'))
+                -Valore $esitoDescrittoreCA.Errore -Stato 'non verificabile' -Completezza 'completo' -StrategiaLettura 'n/d'))
     $riepilogo.AccertamentiFalliti++
-}
-finally {
-    if ($adminCA) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($adminCA) }
 }
 
 $riepilogo.RecordProdotti = $recordEvidenza.Count

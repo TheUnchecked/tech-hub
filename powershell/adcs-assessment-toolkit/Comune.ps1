@@ -16,6 +16,63 @@
 # raccolta a sola lettura, anche se l'effetto sarebbe solo sul comportamento
 # di parsing/esecuzione dello script stesso, non sul sistema).
 
+function Get-DescrittoreSicurezzaCA {
+    <#
+    .SYNOPSIS
+        Legge il descrittore di sicurezza della CA tramite l'unico metodo di
+        sola lettura noto (ICertAdmin2::GetCASecurity, oggetto COM
+        CertificateAuthority.Admin) e ne interpreta le ACE rilevanti.
+    .DESCRIPTION
+        A differenza dell'interfaccia di interrogazione del database
+        (CertificateAuthority.View, deliberatamente non usata in questa
+        raccolta per incertezza sulle costanti numeriche di SetRestriction),
+        GetCASecurity prende una sola stringa in ingresso e restituisce un
+        descrittore di sicurezza: nessun parametro numerico ambiguo da
+        indovinare. La controparte di scrittura (SetCASecurity) non viene mai
+        invocata. I bit ManageCA (0x1) e IssueManageCertificati (0x2) sono
+        decodificati secondo i valori comunemente documentati per il
+        descrittore di sicurezza CA ADCS; l'AccessMask grezzo resta comunque
+        disponibile per riscontro manuale.
+    #>
+    [CmdletBinding()]
+    param([string]$ConfigCA = '')
+
+    $adminCA = $null
+    try {
+        $tipoAdminCA = [Type]::GetTypeFromProgID('CertificateAuthority.Admin')
+        $adminCA = [Activator]::CreateInstance($tipoAdminCA)
+        $sdBase64 = $adminCA.GetCASecurity($ConfigCA)
+
+        $bytesSD = [Convert]::FromBase64String($sdBase64)
+        $rawSD = [System.Security.AccessControl.RawSecurityDescriptor]::new($bytesSD, 0)
+
+        $DirittoManageCA = 0x1
+        $DirittoIssueManageCertificati = 0x2
+
+        $voci = foreach ($ace in $rawSD.DiscretionaryAcl) {
+            $identita = $null
+            try { $identita = $ace.SecurityIdentifier.Translate([System.Security.Principal.NTAccount]).Value }
+            catch { $identita = $ace.SecurityIdentifier.Value }
+
+            [PSCustomObject]@{
+                Identita               = $identita
+                AccessMaskEsadecimale  = ('0x{0:X}' -f $ace.AccessMask)
+                TipoACE                = $ace.AceQualifier.ToString()
+                ManageCA               = [bool]($ace.AccessMask -band $DirittoManageCA)
+                IssueManageCertificati = [bool]($ace.AccessMask -band $DirittoIssueManageCertificati)
+            }
+        }
+
+        return [PSCustomObject]@{ Successo = $true; Voci = @($voci); Errore = $null }
+    }
+    catch {
+        return [PSCustomObject]@{ Successo = $false; Voci = @(); Errore = $_.Exception.Message }
+    }
+    finally {
+        if ($adminCA) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($adminCA) }
+    }
+}
+
 function Format-RecordEvidenza {
     <#
     .SYNOPSIS
