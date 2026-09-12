@@ -5,23 +5,29 @@ Set-StrictMode -Version Latest
 Describe 'Get-AssessmentADRemoteOSInfo' {
 
     BeforeAll {
+        . "$PSScriptRoot\TechHubADRemoteCimTestStubs.ps1"
+        . "$PSScriptRoot\..\Private\Invoke-AssessmentADRemoteCimQuery.ps1"
         . "$PSScriptRoot\..\Public\Get-AssessmentADRemoteOSInfo.ps1"
     }
 
     It 'returns OS information' {
 
-        Mock Invoke-Command {
-            [PSCustomObject][ordered]@{
-                ComputerName            = 'WEB01'
-                OSCaption               = 'Microsoft Windows Server 2022 Standard'
-                OSVersion               = '10.0.20348'
-                OSBuildNumber           = 20348
-                OSSKU                   = 20348
-                WindowsInstallationType = 'Server'
-                Status                  = 'Available'
-                IsReadOnly              = $true
+        Mock New-CimSession {
+            [PSCustomObject]@{ Id = 'synthetic-session' }
+        }
+
+        Mock Get-CimInstance {
+            [PSCustomObject]@{
+                CSName             = 'WEB01'
+                Caption            = 'Microsoft Windows Server 2022 Standard'
+                Version            = '10.0.20348'
+                BuildNumber        = 20348
+                OperatingSystemSKU = 20348
+                ProductType        = 3
             }
         }
+
+        Mock Remove-CimSession {}
 
         $result = @(Get-AssessmentADRemoteOSInfo -ComputerName 'WEB01')
 
@@ -30,28 +36,33 @@ Describe 'Get-AssessmentADRemoteOSInfo' {
         $result[0].OSCaption | Should -Be 'Microsoft Windows Server 2022 Standard'
         $result[0].OSVersion | Should -Be '10.0.20348'
         $result[0].OSBuildNumber | Should -Be 20348
-        $result[0].WindowsInstallationType | Should -Be 'Server'
+        $result[0].TargetType | Should -Be 'Server'
+        $result[0].CollectionMethod | Should -Be 'WinRM'
         $result[0].Status | Should -Be 'Available'
         $result[0].IsReadOnly | Should -BeTrue
     }
 
     It 'supports multiple computers' {
 
-        Mock Invoke-Command {
-            [PSCustomObject][ordered]@{
-                ComputerName            = 'WEB01'
-                OSCaption               = 'Windows Server'
-                OSVersion               = '10.0'
-                OSBuildNumber           = 20348
-                OSSKU                   = 20348
-                WindowsInstallationType = 'Server'
-                Status                  = 'Available'
-                IsReadOnly              = $true
+        Mock New-CimSession {
+            [PSCustomObject]@{ Id = 'synthetic-session' }
+        }
+
+        Mock Get-CimInstance {
+            [PSCustomObject]@{
+                CSName             = 'WEB01'
+                Caption            = 'Windows Server'
+                Version            = '10.0'
+                BuildNumber        = 20348
+                OperatingSystemSKU = 20348
+                ProductType        = 3
             }
         }
 
+        Mock Remove-CimSession {}
+
         $result = @(
-            Get-AssessmentADRemoteOSInfo -ComputerName 'WEB01','WEB02'
+            'WEB01', 'WEB02' | Get-AssessmentADRemoteOSInfo
         )
 
         $result.Count | Should -Be 2
@@ -59,60 +70,77 @@ Describe 'Get-AssessmentADRemoteOSInfo' {
 
     It 'supports UseSSL' {
 
-        Mock Invoke-Command {
-            [PSCustomObject][ordered]@{
-                ComputerName            = 'WEB01'
-                OSCaption               = 'Windows Server'
-                OSVersion               = '10.0'
-                OSBuildNumber           = 20348
-                OSSKU                   = 20348
-                WindowsInstallationType = 'Server'
-                Status                  = 'Available'
-                IsReadOnly              = $true
+        Mock New-CimSession {
+            [PSCustomObject]@{ Id = 'synthetic-session' }
+        }
+
+        Mock New-CimSessionOption {
+            [PSCustomObject]@{ UseSsl = $true }
+        }
+
+        Mock Get-CimInstance {
+            [PSCustomObject]@{
+                CSName             = 'WEB01'
+                Caption            = 'Windows Server'
+                Version            = '10.0'
+                BuildNumber        = 20348
+                OperatingSystemSKU = 20348
+                ProductType        = 3
             }
         }
+
+        Mock Remove-CimSession {}
 
         Get-AssessmentADRemoteOSInfo `
             -ComputerName 'WEB01' `
             -UseSSL |
             Out-Null
 
-        Should -Invoke Invoke-Command -Times 1 -Exactly
+        Should -Invoke New-CimSession -Times 1 -Exactly -ParameterFilter {
+            $null -ne $SessionOption
+        }
     }
 
     It 'handles a remote query failure' {
 
-        Mock Invoke-Command {
-            throw 'Synthetic remote failure'
+        Mock New-CimSession {
+            throw 'Synthetic WSMan failure'
         }
 
-        $errorRecord = $null
+        Mock New-CimSessionOption {
+            throw 'Synthetic DCOM failure'
+        }
 
         $result = @(
-            Get-AssessmentADRemoteOSInfo `
-                -ComputerName 'WEB01' `
-                -ErrorVariable errorRecord `
-                -ErrorAction SilentlyContinue
+            Get-AssessmentADRemoteOSInfo -ComputerName 'WEB01'
         )
 
-        $result.Count | Should -Be 0
-        @($errorRecord).Count | Should -BeGreaterThan 0
+        $result.Count | Should -Be 1
+        $result[0].Status | Should -Be 'NotAvailable'
+        $result[0].DataAvailability | Should -Be 'NotAvailable'
+        $result[0].ErrorType | Should -Be 'RemoteTransportUnavailable'
+        $result[0].ErrorMessage | Should -Not -BeNullOrEmpty
+        $result[0].IsReadOnly | Should -BeTrue
     }
 
     It 'has the expected read-only contract' {
 
-        Mock Invoke-Command {
-            [PSCustomObject][ordered]@{
-                ComputerName            = 'WEB01'
-                OSCaption               = 'Windows Server'
-                OSVersion               = '10.0'
-                OSBuildNumber           = 20348
-                OSSKU                   = 20348
-                WindowsInstallationType = 'Server'
-                Status                  = 'Available'
-                IsReadOnly              = $true
+        Mock New-CimSession {
+            [PSCustomObject]@{ Id = 'synthetic-session' }
+        }
+
+        Mock Get-CimInstance {
+            [PSCustomObject]@{
+                CSName             = 'WEB01'
+                Caption            = 'Windows Server'
+                Version            = '10.0'
+                BuildNumber        = 20348
+                OperatingSystemSKU = 20348
+                ProductType        = 3
             }
         }
+
+        Mock Remove-CimSession {}
 
         $result = @(Get-AssessmentADRemoteOSInfo -ComputerName 'WEB01')
 

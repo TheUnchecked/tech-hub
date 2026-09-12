@@ -20,6 +20,12 @@ Supported read-only operations:
 - `GetADObjects($LdapFilter, $SearchBase, $Properties)`
 - `GetGroups($SearchBase, $Filter)`
 - `GetGroupMembers($GroupIdentity)`
+- `GetDefaultDomainPasswordPolicy()`
+- `GetFineGrainedPasswordPolicies()`
+- `GetObjectSecurityDescriptor($Identity)`
+- `GetOptionalFeatures($Filter)`
+- `GetDnsZones()`
+- `GetDnsZoneTransferSettings($ZoneName)`
 
 The provider never accepts scriptblocks or arbitrary commands. When `-Server` is omitted, the Active Directory module performs its normal automatic discovery.
 
@@ -42,6 +48,14 @@ Every operation returns an object containing:
 
 Domain and forest operations preserve their specific metadata such as `DNSRoot`, `NetBIOSName`, `DomainMode`, `ForestMode`, `RootDomain`, and `Domains`.
 
+`GetDefaultDomainPasswordPolicy()` and `GetFineGrainedPasswordPolicies()` return the raw policy objects from Active Directory (`MinPasswordLength`, `ComplexityEnabled`, `ReversibleEncryptionEnabled`, `LockoutThreshold`, and related properties); they are not passed through the `GetADObjects()` normalizer.
+
+`GetObjectSecurityDescriptor($Identity)` returns one normalized access-control entry (ACE) per `Data` item: `IdentityReference`, `ActiveDirectoryRights` (string), `ObjectTypeGuid` (the extended right or property-set GUID the ACE applies to, or an all-zero GUID when it applies to the whole object), `AccessControlType` (`Allow`/`Deny`), and `IsInherited`. It reads the object's `nTSecurityDescriptor` attribute; it never modifies an ACL.
+
+`GetOptionalFeatures($Filter)` returns the raw objects from `Get-ADOptionalFeature` (for example `Name` and `EnabledScopes`), unmodified.
+
+`GetDnsZones()` and `GetDnsZoneTransferSettings($ZoneName)` require the `DnsServer` module - the only capabilities in this provider that do not rely solely on `ActiveDirectory` - and return the raw objects from `Get-DnsServerZone` / `Get-DnsServerZoneTransfer`, querying the DNS server named by `-Server` (typically a domain controller that also holds the DNS server role).
+
 ## Status semantics
 
 The provider uses the existing status values:
@@ -57,7 +71,7 @@ The provider preserves successful operation results when another operation fails
 
 ## Read-only behavior
 
-Only Active Directory read cmdlets are used: `Get-ADDomain`, `Get-ADForest`, `Get-ADDomainController`, `Get-ADObject`, `Get-ADGroup`, and `Get-ADGroupMember`. The provider does not modify AD, ACLs, GPOs, registry, or filesystem state. It does not contain credentials, execute dynamic code, calculate risk, or create findings.
+Only Active Directory read cmdlets are used: `Get-ADDomain`, `Get-ADForest`, `Get-ADDomainController`, `Get-ADObject`, `Get-ADGroup`, `Get-ADGroupMember`, `Get-ADDefaultDomainPasswordPolicy`, `Get-ADFineGrainedPasswordPolicy`, and `Get-ADOptionalFeature`, plus `Get-DnsServerZone` and `Get-DnsServerZoneTransfer` from the `DnsServer` module for the two DNS operations. `GetObjectSecurityDescriptor()` reads an ACL by requesting the `nTSecurityDescriptor` property through `Get-ADObject`; it does not call `Set-Acl`/`Set-ADObject` or otherwise modify a security descriptor. The provider does not modify AD, ACLs, GPOs, registry, or filesystem state. It does not contain credentials, execute dynamic code, calculate risk, or create findings.
 
 ## Testing and limitations
 

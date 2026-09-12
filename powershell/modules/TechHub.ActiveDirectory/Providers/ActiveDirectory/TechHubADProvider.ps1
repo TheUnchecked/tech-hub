@@ -273,6 +273,125 @@ class TechHubADProvider {
     }
 
     # ========================================================
+    # DEFAULT DOMAIN PASSWORD POLICY
+    # ========================================================
+
+    [object] GetDefaultDomainPasswordPolicy() {
+
+        $Operation = 'GetDefaultDomainPasswordPolicy'
+
+        $ReadResult = Get-AssessmentADProviderDefaultPasswordPolicy -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # FINE-GRAINED PASSWORD POLICIES
+    # ========================================================
+
+    [object] GetFineGrainedPasswordPolicies() {
+
+        $Operation = 'GetFineGrainedPasswordPolicies'
+
+        $ReadResult = Get-AssessmentADProviderFineGrainedPasswordPolicies -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # OBJECT SECURITY DESCRIPTOR (ACL)
+    # ========================================================
+
+    [object] GetObjectSecurityDescriptor(
+        [string] $Identity
+    ) {
+
+        $Operation = 'GetObjectSecurityDescriptor'
+
+        $ReadResult = Get-AssessmentADProviderObjectSecurityDescriptor -Identity $Identity -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # OPTIONAL FEATURES
+    # ========================================================
+
+    [object] GetOptionalFeatures(
+        [string] $Filter
+    ) {
+
+        $Operation = 'GetOptionalFeatures'
+
+        $ReadResult = Get-AssessmentADProviderOptionalFeatures -Filter $Filter -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # DNS ZONES
+    #
+    # These operations require the DnsServer module, a distinct
+    # dependency from the ActiveDirectory module used everywhere
+    # else in this provider. They target the DNS server named by
+    # -Server (typically a domain controller with the DNS role).
+    # ========================================================
+
+    [object] GetDnsZones() {
+
+        $Operation = 'GetDnsZones'
+
+        $ReadResult = Get-AssessmentADProviderDnsZones -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
+    # DNS ZONE TRANSFER SETTINGS
+    # ========================================================
+
+    [object] GetDnsZoneTransferSettings(
+        [string] $ZoneName
+    ) {
+
+        $Operation = 'GetDnsZoneTransferSettings'
+
+        $ReadResult = Get-AssessmentADProviderDnsZoneTransferSettings -ZoneName $ZoneName -Server $this.Server
+        if (-not $ReadResult.IsAvailable) {
+            return $this.NewUnavailableResult($Operation)
+        }
+        if ($null -ne $ReadResult.Exception) {
+            return $this.NewErrorResult($Operation, $ReadResult.Exception)
+        }
+        return $this.NewResult($Operation, 'Available', $ReadResult.Data, $null, $null)
+    }
+
+    # ========================================================
     # PROVIDER STATUS
     # ========================================================
 

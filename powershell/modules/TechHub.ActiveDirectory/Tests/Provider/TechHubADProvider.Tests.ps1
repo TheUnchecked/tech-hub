@@ -83,6 +83,7 @@ Describe 'TechHubADProvider' {
         function global:Get-ADObject {
             param(
                 [string]$LDAPFilter,
+                [string]$Identity,
                 [string]$SearchBase,
                 [string[]]$Properties,
                 [string]$Server,
@@ -102,6 +103,29 @@ Describe 'TechHubADProvider' {
         function global:Get-ADGroupMember {
             param(
                 [string]$Identity,
+                [string]$Server,
+                [string]$ErrorAction
+            )
+        }
+
+        function global:Get-ADDefaultDomainPasswordPolicy {
+            param(
+                [string]$Server,
+                [string]$ErrorAction
+            )
+        }
+
+        function global:Get-ADFineGrainedPasswordPolicy {
+            param(
+                [string]$Filter,
+                [string]$Server,
+                [string]$ErrorAction
+            )
+        }
+
+        function global:Get-ADOptionalFeature {
+            param(
+                [string]$Filter,
                 [string]$Server,
                 [string]$ErrorAction
             )
@@ -146,6 +170,21 @@ Describe 'TechHubADProvider' {
 
         Remove-Item `
             Function:\Get-ADGroupMember `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        Remove-Item `
+            Function:\Get-ADDefaultDomainPasswordPolicy `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        Remove-Item `
+            Function:\Get-ADFineGrainedPasswordPolicy `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        Remove-Item `
+            Function:\Get-ADOptionalFeature `
             -Force `
             -ErrorAction SilentlyContinue
 
@@ -225,6 +264,25 @@ Describe 'TechHubADProvider' {
             SID                = 'S-1-5-21-100-200-300-1102'
         }
 
+        $Script:PasswordPolicy = [PSCustomObject]@{
+            DistinguishedName           = 'DC=example,DC=test'
+            MinPasswordLength           = 14
+            ComplexityEnabled           = $true
+            ReversibleEncryptionEnabled = $false
+            LockoutThreshold            = 10
+        }
+
+        $Script:FineGrainedPasswordPolicy = [PSCustomObject]@{
+            Name              = 'Tier0-PSO'
+            MinPasswordLength = 20
+            ComplexityEnabled = $true
+        }
+
+        $Script:OptionalFeature = [PSCustomObject]@{
+            Name          = 'Recycle Bin Feature'
+            EnabledScopes = @('DC=example,DC=test')
+        }
+
         # ============================================================
         # MOCK AVAILABILITY CHECK
         #
@@ -285,6 +343,28 @@ Describe 'TechHubADProvider' {
             -ModuleName TechHub.ActiveDirectory {
                 @(
                     $Script:Member
+                )
+            }
+
+        Mock `
+            Get-ADDefaultDomainPasswordPolicy `
+            -ModuleName TechHub.ActiveDirectory {
+                $Script:PasswordPolicy
+            }
+
+        Mock `
+            Get-ADFineGrainedPasswordPolicy `
+            -ModuleName TechHub.ActiveDirectory {
+                @(
+                    $Script:FineGrainedPasswordPolicy
+                )
+            }
+
+        Mock `
+            Get-ADOptionalFeature `
+            -ModuleName TechHub.ActiveDirectory {
+                @(
+                    $Script:OptionalFeature
                 )
             }
     }
@@ -376,6 +456,111 @@ Describe 'TechHubADProvider' {
 
         $Result.Status |
             Should -Be 'Available'
+    }
+
+    # ================================================================
+    # 5b
+    # ================================================================
+
+    It 'retrieves the default domain password policy' {
+
+        $Result = (
+            New-AssessmentADProvider
+        ).GetDefaultDomainPasswordPolicy()
+
+        $Result.Data[0].MinPasswordLength |
+            Should -Be 14
+
+        $Result.Status |
+            Should -Be 'Available'
+    }
+
+    # ================================================================
+    # 5c
+    # ================================================================
+
+    It 'retrieves fine-grained password policies' {
+
+        $Result = (
+            New-AssessmentADProvider
+        ).GetFineGrainedPasswordPolicies()
+
+        $Result.Data[0].Name |
+            Should -Be 'Tier0-PSO'
+
+        $Result.Status |
+            Should -Be 'Available'
+    }
+
+    # ================================================================
+    # 5cc
+    # ================================================================
+
+    It 'retrieves optional features' {
+
+        $Result = (
+            New-AssessmentADProvider
+        ).GetOptionalFeatures("Name -eq 'Recycle Bin Feature'")
+
+        $Result.Data[0].Name |
+            Should -Be 'Recycle Bin Feature'
+
+        $Result.Data[0].EnabledScopes |
+            Should -Contain 'DC=example,DC=test'
+
+        $Result.Status |
+            Should -Be 'Available'
+    }
+
+    # ================================================================
+    # 5d
+    # ================================================================
+
+    It 'retrieves and normalizes the security descriptor of an object' {
+
+        $SyntheticSecurityDescriptor = [PSCustomObject]@{
+            Access = @(
+                [PSCustomObject]@{
+                    IdentityReference     = 'EXAMPLE\Domain Admins'
+                    ActiveDirectoryRights = 'GenericAll'
+                    ObjectType            = [guid]::Empty
+                    AccessControlType     = 'Allow'
+                    IsInherited           = $false
+                }
+                [PSCustomObject]@{
+                    IdentityReference     = 'EXAMPLE\svc-backup'
+                    ActiveDirectoryRights = 'ExtendedRight'
+                    ObjectType            = [guid]'1131f6aa-9c07-11d1-f79f-00c04fc2dcd2'
+                    AccessControlType     = 'Allow'
+                    IsInherited           = $false
+                }
+            )
+        }
+
+        Mock `
+            Get-ADObject `
+            -ModuleName TechHub.ActiveDirectory {
+                [PSCustomObject]@{
+                    DistinguishedName    = 'DC=example,DC=test'
+                    nTSecurityDescriptor = $SyntheticSecurityDescriptor
+                }
+            }
+
+        $Result = (
+            New-AssessmentADProvider
+        ).GetObjectSecurityDescriptor('DC=example,DC=test')
+
+        $Result.Status |
+            Should -Be 'Available'
+
+        $Result.Data.Count |
+            Should -Be 2
+
+        $Result.Data[0].IdentityReference |
+            Should -Be 'EXAMPLE\Domain Admins'
+
+        $Result.Data[1].ObjectTypeGuid |
+            Should -Be ([guid]'1131f6aa-9c07-11d1-f79f-00c04fc2dcd2')
     }
 
     # ================================================================

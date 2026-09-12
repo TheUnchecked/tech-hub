@@ -17,6 +17,17 @@ The Active Directory security assessment detects:
 - Constrained delegation through `msDS-AllowedToDelegateTo`.
 - Resource-based constrained delegation (RBCD) through `msDS-AllowedToActOnBehalfOfOtherIdentity`.
 - Privileged Active Directory group membership and associated risk indicators.
+- Kerberoasting exposure: SPN-bearing user accounts, prioritizing privileged and RC4-only accounts.
+- AS-REP Roasting exposure through the `DONT_REQUIRE_PREAUTH` userAccountControl flag (`0x400000`).
+- krbtgt account password age.
+- Default domain password policy and Fine-Grained Password Policies against a configurable baseline.
+- DCSync replication rights (`DS-Replication-Get-Changes` / `-All`) held outside the expected default holders.
+- "Shadow admin" ACL grants (`GenericAll`/`WriteDacl`/`WriteOwner`/`GenericWrite`) on the domain root or `AdminSDHolder` outside the expected default holders.
+- Stale enabled user/computer accounts and accounts with a non-expiring password.
+- Legacy authentication hardening (LM/NTLM, LDAP signing), Credential Guard status, and obsolete operating systems on remote computers.
+- Advanced Audit Policy coverage of security-relevant subcategories on remote computers.
+- AD-integrated DNS zone dynamic update and zone transfer security (requires the `DnsServer` module).
+- Active Directory Recycle Bin status.
 
 The remote infrastructure assessment collects read-only configuration and security-relevant information from Windows computers:
 

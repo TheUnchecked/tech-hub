@@ -35,6 +35,14 @@ function ConvertTo-TechHubADProviderObject {
         'msDS-AllowedToDelegateTo' = $null
 
         SID                      = $null
+
+        # ----------------------------------------------------
+        # Kerberos / authentication attributes
+        # ----------------------------------------------------
+
+        PasswordLastSet          = $null
+        'msDS-SupportedEncryptionTypes' = $null
+        LastLogonTimestamp       = $null
     }
 
     foreach ($PropertyName in @($Values.Keys)) {
@@ -151,6 +159,55 @@ function ConvertTo-TechHubADProviderObject {
             }
 
             # ------------------------------------------------
+            # Kerberos / authentication attributes
+            # ------------------------------------------------
+
+            'PasswordLastSet' {
+
+                try {
+
+                    $Values[$PropertyName] = `
+                        [datetime]$Property.Value
+                }
+                catch {
+
+                    Write-Verbose `
+                        -Message `
+                        'Provider received an invalid PasswordLastSet.'
+                }
+            }
+
+            'msDS-SupportedEncryptionTypes' {
+
+                try {
+
+                    $Values[$PropertyName] = `
+                        [int]$Property.Value
+                }
+                catch {
+
+                    Write-Verbose `
+                        -Message `
+                        'Provider received an invalid msDS-SupportedEncryptionTypes.'
+                }
+            }
+
+            'LastLogonTimestamp' {
+
+                try {
+
+                    $Values[$PropertyName] = `
+                        [datetime]$Property.Value
+                }
+                catch {
+
+                    Write-Verbose `
+                        -Message `
+                        'Provider received an invalid LastLogonTimestamp.'
+                }
+            }
+
+            # ------------------------------------------------
             # OS attributes
             # ------------------------------------------------
 
@@ -240,5 +297,12 @@ function ConvertTo-TechHubADProviderObject {
             $Values.'msDS-AllowedToDelegateTo'
 
         SID                      = $Values.SID
+
+        PasswordLastSet          = $Values.PasswordLastSet
+
+        'msDS-SupportedEncryptionTypes' = `
+            $Values.'msDS-SupportedEncryptionTypes'
+
+        LastLogonTimestamp       = $Values.LastLogonTimestamp
     }
 }

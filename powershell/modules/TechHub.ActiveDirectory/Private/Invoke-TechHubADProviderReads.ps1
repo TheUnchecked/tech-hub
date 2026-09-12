@@ -171,6 +171,127 @@ function Get-AssessmentADProviderGroups {
     }
 }
 
+function Get-AssessmentADProviderDefaultPasswordPolicy {
+
+    [CmdletBinding()]
+    param(
+        [string]$Server
+    )
+
+    if (-not (Test-TechHubADProviderReadAvailability)) {
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
+    }
+
+    try {
+        $Parameters = @{ ErrorAction = 'Stop' }
+        if (-not [string]::IsNullOrWhiteSpace($Server)) {
+            $Parameters.Server = $Server
+        }
+
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADDefaultDomainPasswordPolicy @Parameters)
+    }
+    catch {
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+    }
+}
+
+function Get-AssessmentADProviderFineGrainedPasswordPolicies {
+
+    [CmdletBinding()]
+    param(
+        [string]$Server
+    )
+
+    if (-not (Test-TechHubADProviderReadAvailability)) {
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
+    }
+
+    try {
+        $Parameters = @{ Filter = '*'; ErrorAction = 'Stop' }
+        if (-not [string]::IsNullOrWhiteSpace($Server)) {
+            $Parameters.Server = $Server
+        }
+
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADFineGrainedPasswordPolicy @Parameters)
+    }
+    catch {
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+    }
+}
+
+function Get-AssessmentADProviderObjectSecurityDescriptor {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Identity,
+
+        [string]$Server
+    )
+
+    if (-not (Test-TechHubADProviderReadAvailability)) {
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
+    }
+
+    try {
+        $Parameters = @{
+            Identity    = $Identity
+            Properties  = @('nTSecurityDescriptor')
+            ErrorAction = 'Stop'
+        }
+        if (-not [string]::IsNullOrWhiteSpace($Server)) {
+            $Parameters.Server = $Server
+        }
+
+        $Object = Get-ADObject @Parameters
+
+        $SecurityDescriptor = $null
+        if ($null -ne $Object -and $null -ne $Object.PSObject.Properties['nTSecurityDescriptor']) {
+            $SecurityDescriptor = $Object.PSObject.Properties['nTSecurityDescriptor'].Value
+        }
+
+        $Aces = @()
+        if ($null -ne $SecurityDescriptor -and $null -ne $SecurityDescriptor.Access) {
+            $Aces = @(
+                $SecurityDescriptor.Access |
+                    ForEach-Object {
+                        ConvertTo-TechHubADProviderAce -InputObject $_
+                    }
+            )
+        }
+
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data $Aces
+    }
+    catch {
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+    }
+}
+
+function Get-AssessmentADProviderOptionalFeatures {
+
+    [CmdletBinding()]
+    param(
+        [string]$Filter = '*',
+        [string]$Server
+    )
+
+    if (-not (Test-TechHubADProviderReadAvailability)) {
+        return New-AssessmentADProviderReadResponse -IsAvailable $false
+    }
+
+    try {
+        $Parameters = @{ Filter = $Filter; ErrorAction = 'Stop' }
+        if (-not [string]::IsNullOrWhiteSpace($Server)) {
+            $Parameters.Server = $Server
+        }
+
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Data @(Get-ADOptionalFeature @Parameters)
+    }
+    catch {
+        return New-AssessmentADProviderReadResponse -IsAvailable $true -Exception $_.Exception
+    }
+}
+
 function Get-AssessmentADProviderGroupMembers {
 
     [CmdletBinding()]

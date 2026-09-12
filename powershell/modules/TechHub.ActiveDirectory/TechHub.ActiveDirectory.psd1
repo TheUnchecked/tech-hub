@@ -23,6 +23,21 @@
     'Get-AssessmentADPrivilegedGroup'
     'Get-AssessmentADServiceAccounts'
     'Get-AssessmentADRemoteTargets'
+    'Get-AssessmentADKerberoasting'
+    'Get-AssessmentADASREPRoasting'
+    'Get-AssessmentADKrbtgtPasswordAge'
+    'Get-AssessmentADPasswordPolicy'
+    'Get-AssessmentADDCSyncRights'
+    'Get-AssessmentADShadowAdminRights'
+    'Get-AssessmentADStaleAccounts'
+    'Get-AssessmentADPasswordNeverExpiresAccounts'
+    'Get-AssessmentADProtectedUsersCoverage'
+    'Get-AssessmentADRemoteAuthenticationHardening'
+    'Get-AssessmentADRemoteCredentialGuardStatus'
+    'Get-AssessmentADRemoteObsoleteOperatingSystem'
+    'Get-AssessmentADRemoteAuditPolicy'
+    'Get-AssessmentADDNSZoneSecurity'
+    'Get-AssessmentADRecycleBinStatus'
 
     # ------------------------------------------------------------
     # Remote assessment collectors
@@ -31,7 +46,6 @@
     'Get-AssessmentADRemoteIISAppPoolAccounts'
     'Get-AssessmentADRemoteLocalGroupMembers'
     'Get-AssessmentADRemoteNetworkShareACLs'
-    'Get-AssessmentADRemoteScheduledTaskSecurity'
     'Get-AssessmentADRemoteScheduledTaskAccounts'
     'Get-AssessmentADRemoteOSInfo'
     'Get-AssessmentADRemoteWindowsFeatures'
@@ -51,6 +65,7 @@
     'New-AssessmentADCheckRegistry'
     'Invoke-AssessmentADAssessment'
     'Invoke-AssessmentADRemoteAssessment'
+    'Invoke-AssessmentADFullAssessment'
 
     # ------------------------------------------------------------
     # Provider

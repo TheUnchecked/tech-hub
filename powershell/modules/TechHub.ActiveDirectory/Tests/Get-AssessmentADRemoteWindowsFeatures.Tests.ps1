@@ -5,6 +5,8 @@ Set-StrictMode -Version Latest
 Describe 'Get-AssessmentADRemoteWindowsFeatures' {
 
     BeforeAll {
+        . "$PSScriptRoot\TechHubADRemoteCimTestStubs.ps1"
+        . "$PSScriptRoot\..\Private\Invoke-AssessmentADRemoteCimQuery.ps1"
         . "$PSScriptRoot\..\Public\Get-AssessmentADRemoteWindowsFeatures.ps1"
     }
 
@@ -90,17 +92,25 @@ Describe 'Get-AssessmentADRemoteWindowsFeatures' {
             throw 'Synthetic remote failure'
         }
 
-        $errors = @()
+        Mock New-CimSession {
+            throw 'Synthetic WSMan failure'
+        }
+
+        Mock New-CimSessionOption {
+            throw 'Synthetic DCOM failure'
+        }
 
         $result = @(
-            Get-AssessmentADRemoteWindowsFeatures `
-                -ComputerName 'WEB01' `
-                -ErrorVariable errors `
-                -ErrorAction SilentlyContinue
+            Get-AssessmentADRemoteWindowsFeatures -ComputerName 'WEB01'
         )
 
-        $result.Count | Should -Be 0
-        $errors.Count | Should -BeGreaterThan 0
+        $result.Count | Should -Be 1
+        $result[0].ComputerName | Should -Be 'WEB01'
+        $result[0].Status | Should -Be 'NotAvailable'
+        $result[0].DataAvailability | Should -Be 'NotAvailable'
+        $result[0].ErrorType | Should -Be 'RemoteTransportUnavailable'
+        $result[0].ErrorMessage | Should -Not -BeNullOrEmpty
+        $result[0].IsReadOnly | Should -BeTrue
     }
 
     It 'returns read-only records' {
@@ -120,7 +130,9 @@ Describe 'Get-AssessmentADRemoteWindowsFeatures' {
 
         $result[0].ComputerName | Should -Be 'WEB01'
         $result[0].FeatureName | Should -Be 'DNS'
-        $result[0].Status | Should -Be 'Installed'
+        $result[0].Status | Should -Be 'Available'
+        $result[0].DataAvailability | Should -Be 'Available'
+        $result[0].CollectionMethod | Should -Be 'WinRM'
         $result[0].IsReadOnly | Should -BeTrue
     }
 }
