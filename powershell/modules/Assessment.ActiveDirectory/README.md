@@ -46,6 +46,14 @@ seconds). A powered-off or unreachable host fails fast with a clear error
 instead of letting `New-CimSession`/`Invoke-Command` hang for minutes, which
 matters when assessing a large number of computers.
 
+That reachability check only bounds the initial connection, not a hang that
+happens afterwards (a stuck `secedit.exe`, a WMI call that never returns).
+`Invoke-AssessmentADRemoteAssessment` closes that gap: every collector call
+runs in a background job with a hard wall-clock timeout (`-TimeoutSeconds`,
+default 60). A collector that does not finish in time is stopped and
+reported with `Status = 'Timeout'` instead of blocking the rest of the
+assessment.
+
 ---
 
 ## Requirements
@@ -104,12 +112,18 @@ $remote = 'SRV-WEB01','SRV-FILE01' |
 
 # All collectors, explicit target discovery from AD first
 $computers = Get-AssessmentADRemoteTargets -TargetType Server | Select-Object -ExpandProperty ComputerName
-$remote = $computers | Invoke-AssessmentADRemoteAssessment
+$remote = $computers | Invoke-AssessmentADRemoteAssessment -Verbose
+
+# Large or unreliable estate: lower the per-collector timeout so
+# unresponsive hosts don't hold up the run
+$remote = $computers | Invoke-AssessmentADRemoteAssessment -TimeoutSeconds 30 -Verbose
 ```
 
 A collector that fails outright for a computer produces one record with
 `Status = 'Error'` and the failure message, instead of throwing and losing
-that computer's data.
+that computer's data. A collector that does not finish within
+`-TimeoutSeconds` (default 60) is stopped and produces one record with
+`Status = 'Timeout'`.
 
 ### Export to JSON, CSV or HTML
 

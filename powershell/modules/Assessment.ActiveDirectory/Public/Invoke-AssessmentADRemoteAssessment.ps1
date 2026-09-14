@@ -12,6 +12,15 @@ function Invoke-AssessmentADRemoteAssessment {
         returns their combined results, each record tagged with the
         Collector name that produced it.
 
+        Each collector call runs in a background job with a hard wall-clock
+        timeout (TimeoutSeconds). The reachability checks in the underlying
+        transports only bound the initial connection attempt; they cannot
+        bound a hang that happens after the connection succeeds (a stuck
+        secedit.exe, a WMI call that never returns, and so on). Running the
+        call as a job means it can always be stopped and removed once the
+        timeout elapses, regardless of where it is stuck, so one bad host
+        never holds up the whole assessment.
+
     .PARAMETER ComputerName
         Target computer. Supports pipeline input.
 
@@ -23,10 +32,17 @@ function Invoke-AssessmentADRemoteAssessment {
     .PARAMETER Credential
         Optional alternate credential, forwarded to collectors that support it.
 
+    .PARAMETER TimeoutSeconds
+        Maximum time allowed for each collector call against each computer,
+        in seconds. Default 60. A collector that does not finish in time is
+        stopped and reported with Status = 'Timeout'.
+
     .OUTPUTS
         The combined objects from each collector, each with an added Collector
         property. A collector that fails outright for a computer emits one
         record with Status = 'Error' and the failure message instead of data.
+        A collector that exceeds TimeoutSeconds emits one record with
+        Status = 'Timeout'.
     #>
     [CmdletBinding()]
     param(
@@ -38,8 +54,20 @@ function Invoke-AssessmentADRemoteAssessment {
         [string[]]$Collector,
 
         [Parameter()]
-        [System.Management.Automation.PSCredential]$Credential
+        [System.Management.Automation.PSCredential]$Credential,
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 60
     )
+
+    begin {
+
+        $ModulePath = (Get-Module -Name Assessment.ActiveDirectory | Select-Object -First 1).Path
+
+        if ([string]::IsNullOrWhiteSpace($ModulePath)) {
+            throw 'Unable to resolve the path of the Assessment.ActiveDirectory module. Import it with Import-Module before calling Invoke-AssessmentADRemoteAssessment.'
+        }
+    }
 
     process {
 
@@ -65,6 +93,10 @@ function Invoke-AssessmentADRemoteAssessment {
 
             $FunctionName = $CollectorMap[$CollectorName]
 
+            Write-Verbose "[$ComputerName] Running collector $CollectorName (timeout ${TimeoutSeconds}s)."
+
+            $Job = $null
+
             try {
                 $Command = Get-Command -Name $FunctionName -CommandType Function -ErrorAction Stop
 
@@ -74,7 +106,33 @@ function Invoke-AssessmentADRemoteAssessment {
                     $Parameters.Credential = $Credential
                 }
 
-                $Results = @(& $Command @Parameters -ErrorAction Stop)
+                $Job = Start-Job -ScriptBlock {
+                    param($JobModulePath, $JobFunctionName, $JobParameters)
+
+                    Import-Module -Name $JobModulePath -Force -ErrorAction Stop
+
+                    & $JobFunctionName @JobParameters -ErrorAction Stop
+                } -ArgumentList $ModulePath, $FunctionName, $Parameters
+
+                $Completed = Wait-Job -Job $Job -Timeout $TimeoutSeconds
+
+                if ($null -eq $Completed) {
+
+                    Write-Verbose "[$ComputerName] Collector $CollectorName exceeded ${TimeoutSeconds}s. Stopping it."
+
+                    [PSCustomObject][ordered]@{
+                        ComputerName = $ComputerName
+                        Collector    = $CollectorName
+                        Status       = 'Timeout'
+                        Error        = "Collector did not complete within $TimeoutSeconds second(s)."
+                    }
+
+                    continue
+                }
+
+                $Results = @(Receive-Job -Job $Job -ErrorAction Stop)
+
+                Write-Verbose "[$ComputerName] Collector $CollectorName completed."
 
                 foreach ($Result in $Results) {
 
@@ -90,6 +148,13 @@ function Invoke-AssessmentADRemoteAssessment {
                     Collector    = $CollectorName
                     Status       = 'Error'
                     Error        = $_.Exception.Message
+                }
+            }
+            finally {
+
+                if ($null -ne $Job) {
+                    Stop-Job -Job $Job -ErrorAction SilentlyContinue
+                    Remove-Job -Job $Job -Force -ErrorAction SilentlyContinue
                 }
             }
         }
