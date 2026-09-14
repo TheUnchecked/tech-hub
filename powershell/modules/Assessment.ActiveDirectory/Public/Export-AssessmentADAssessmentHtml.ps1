@@ -85,6 +85,165 @@ function Export-AssessmentADAssessmentHtml {
                 )
             }
 
+            function ConvertTo-HtmlEvidenceList {
+                param(
+                    [AllowNull()]
+                    [object]$Value
+                )
+
+                if ($null -eq $Value) {
+                    return '<span class="subtle">&mdash;</span>'
+                }
+
+                $IsScalar =
+                    $Value -is [string] -or
+                    $Value -is [bool] -or
+                    $Value -is [datetime] -or
+                    $Value -is [guid] -or
+                    $Value.GetType().IsPrimitive
+
+                if ($IsScalar) {
+
+                    $Text = [string]$Value
+
+                    if ([string]::IsNullOrWhiteSpace($Text)) {
+                        return '<span class="subtle">&mdash;</span>'
+                    }
+
+                    return ConvertTo-HtmlSafe $Text
+                }
+
+                if ($Value -is [System.Collections.IEnumerable]) {
+
+                    $Items = @($Value)
+
+                    if ($Items.Count -eq 0) {
+                        return '<span class="subtle">None</span>'
+                    }
+
+                    $ListItems = foreach ($Item in $Items) {
+                        '<li>' + (ConvertTo-HtmlEvidenceList $Item) + '</li>'
+                    }
+
+                    return '<ul class="evidence-list">' +
+                        ($ListItems -join '') +
+                        '</ul>'
+                }
+
+                if ($null -ne $Value.PSObject -and $Value.PSObject.Properties.Count -gt 0) {
+
+                    $Rows = foreach ($Property in $Value.PSObject.Properties) {
+
+                        $PropertyValue =
+                            ConvertTo-HtmlEvidenceList $Property.Value
+
+                        '<li><strong>' +
+                            (ConvertTo-HtmlSafe $Property.Name) +
+                            ':</strong> ' +
+                            $PropertyValue +
+                            '</li>'
+                    }
+
+                    return '<ul class="evidence-list">' +
+                        ($Rows -join '') +
+                        '</ul>'
+                }
+
+                return ConvertTo-HtmlSafe ([string]$Value)
+            }
+
+            function Get-AssessmentAffectedObjectMarkup {
+                param(
+                    [AllowNull()]
+                    [object]$AffectedObject,
+
+                    [AllowNull()]
+                    [string]$ObjectType,
+
+                    [AllowNull()]
+                    [string]$FindingDomain,
+
+                    [AllowNull()]
+                    [string]$FallbackDomain
+                )
+
+                $DomainSuffix = $FindingDomain
+
+                if ([string]::IsNullOrWhiteSpace($DomainSuffix)) {
+                    $DomainSuffix = $FallbackDomain
+                }
+
+                $BaseName = $null
+                $IsComputerLike = $false
+
+                if ($null -ne $AffectedObject) {
+
+                    if (
+                        $null -ne $AffectedObject.PSObject.Properties['ComputerName'] -and
+                        -not [string]::IsNullOrWhiteSpace([string]$AffectedObject.ComputerName)
+                    ) {
+
+                        $BaseName = [string]$AffectedObject.ComputerName
+                        $IsComputerLike = $true
+                    }
+                    elseif (
+                        $null -ne $AffectedObject.PSObject.Properties['Name'] -and
+                        -not [string]::IsNullOrWhiteSpace([string]$AffectedObject.Name)
+                    ) {
+
+                        $BaseName = [string]$AffectedObject.Name
+                    }
+                }
+
+                if ($ObjectType -eq 'Computer') {
+                    $IsComputerLike = $true
+                }
+
+                if ([string]::IsNullOrWhiteSpace($BaseName)) {
+                    return '<span class="subtle">&mdash;</span>'
+                }
+
+                $PrimaryLabel = $BaseName
+
+                if (
+                    $IsComputerLike -and
+                    $BaseName -notmatch '\.' -and
+                    -not [string]::IsNullOrWhiteSpace($DomainSuffix)
+                ) {
+
+                    $PrimaryLabel = '{0}.{1}' -f $BaseName, $DomainSuffix
+                }
+
+                $SecondaryParts = @()
+
+                if ($null -ne $AffectedObject) {
+
+                    if (
+                        $null -ne $AffectedObject.PSObject.Properties['GroupName'] -and
+                        -not [string]::IsNullOrWhiteSpace([string]$AffectedObject.GroupName)
+                    ) {
+
+                        $SecondaryParts += 'Group: ' + [string]$AffectedObject.GroupName
+                    }
+
+                    if (
+                        $null -ne $AffectedObject.PSObject.Properties['Member'] -and
+                        -not [string]::IsNullOrWhiteSpace([string]$AffectedObject.Member)
+                    ) {
+
+                        $SecondaryParts += 'Member: ' + [string]$AffectedObject.Member
+                    }
+                }
+
+                $Html = '<strong>' + (ConvertTo-HtmlSafe $PrimaryLabel) + '</strong>'
+
+                foreach ($Part in $SecondaryParts) {
+                    $Html += '<div class="subtle">' + (ConvertTo-HtmlSafe $Part) + '</div>'
+                }
+
+                return $Html
+            }
+
             function Get-SeverityClass {
                 param(
                     [AllowNull()]
@@ -189,11 +348,13 @@ function Export-AssessmentADAssessmentHtml {
             }
 
             $Domain = ''
+            $AssessmentDomainRaw = $null
 
             if (
                 $Assessment.PSObject.Properties['Domain'] -and
                 $null -ne $Assessment.Domain
             ) {
+                $AssessmentDomainRaw = [string]$Assessment.Domain
                 $Domain = ConvertTo-HtmlSafe $Assessment.Domain
             }
 
@@ -399,14 +560,34 @@ function Export-AssessmentADAssessmentHtml {
                     $Status = ConvertTo-HtmlSafe $Finding.Status
                 }
 
+                $ObjectTypeRaw = $null
+
                 if ($Finding.PSObject.Properties['ObjectType']) {
+                    $ObjectTypeRaw = [string]$Finding.ObjectType
                     $ObjectType = ConvertTo-HtmlSafe $Finding.ObjectType
                 }
 
-                if ($Finding.PSObject.Properties['AffectedObject']) {
-                    $ObjectName =
-                        ConvertTo-HtmlJson $Finding.AffectedObject
+                $FindingDomainRaw = $null
+
+                if (
+                    $Finding.PSObject.Properties['Domain'] -and
+                    $null -ne $Finding.Domain
+                ) {
+                    $FindingDomainRaw = [string]$Finding.Domain
                 }
+
+                $AffectedObjectRaw = $null
+
+                if ($Finding.PSObject.Properties['AffectedObject']) {
+                    $AffectedObjectRaw = $Finding.AffectedObject
+                }
+
+                $ObjectName =
+                    Get-AssessmentAffectedObjectMarkup `
+                        -AffectedObject $AffectedObjectRaw `
+                        -ObjectType $ObjectTypeRaw `
+                        -FindingDomain $FindingDomainRaw `
+                        -FallbackDomain $AssessmentDomainRaw
 
                 if ($Finding.PSObject.Properties['DistinguishedName']) {
                     $DistinguishedName =
@@ -424,7 +605,7 @@ function Export-AssessmentADAssessmentHtml {
 
                 if ($Finding.PSObject.Properties['Evidence']) {
                     $Evidence =
-                        ConvertTo-HtmlJson $Finding.Evidence
+                        ConvertTo-HtmlEvidenceList $Finding.Evidence
                 }
 
                 if ($Finding.PSObject.Properties['References']) {
@@ -482,8 +663,8 @@ function Export-AssessmentADAssessmentHtml {
         <tr>
             <th>Affected object</th>
             <td>
-                <strong>$ObjectType</strong>
-                <div class="object-json">$ObjectName</div>
+                $ObjectName
+                <div class="subtle">$ObjectType</div>
                 <div class="dn">$DistinguishedName</div>
             </td>
         </tr>
@@ -501,7 +682,7 @@ function Export-AssessmentADAssessmentHtml {
         </tr>
         <tr>
             <th>Evidence</th>
-            <td><pre>$Evidence</pre></td>
+            <td class="evidence-cell">$Evidence</td>
         </tr>
         <tr>
             <th>References</th>
@@ -1333,23 +1514,6 @@ tbody tr:hover {
     overflow-wrap: anywhere;
 }
 
-.object-json {
-
-    margin-top: 5px;
-
-    max-width: 280px;
-
-    font-family:
-        Consolas,
-        monospace;
-
-    font-size: 10px;
-
-    color: var(--gray-600);
-
-    overflow-wrap: anywhere;
-}
-
 details {
 
     border: 1px solid var(--gray-200);
@@ -1556,6 +1720,34 @@ pre {
     color: var(--gray-700);
 
     border: 0;
+}
+
+.evidence-cell {
+    max-width: 560px;
+}
+
+.evidence-list {
+
+    margin: 0;
+
+    padding-left: 18px;
+
+    font-size: 12px;
+
+    line-height: 1.6;
+}
+
+.evidence-list .evidence-list {
+
+    margin-top: 3px;
+
+    font-size: 11.5px;
+
+    color: var(--gray-600);
+}
+
+.evidence-list li {
+    overflow-wrap: anywhere;
 }
 
 /* ============================================================
