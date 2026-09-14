@@ -62,31 +62,40 @@ function Export-AssessmentADAssessmentHtml {
             function ConvertTo-HtmlValueList {
                 param([AllowNull()][object]$Value)
 
-                if ($null -eq $Value) { return '<span class="subtle">&mdash;</span>' }
+                try {
 
-                $IsScalar = $Value -is [string] -or $Value -is [bool] -or $Value -is [datetime] -or $Value -is [guid] -or $Value.GetType().IsPrimitive
+                    if ($null -eq $Value) { return '<span class="subtle">&mdash;</span>' }
 
-                if ($IsScalar) {
-                    $Text = [string]$Value
-                    if ([string]::IsNullOrWhiteSpace($Text)) { return '<span class="subtle">&mdash;</span>' }
-                    return ConvertTo-HtmlSafe $Text
-                }
+                    $IsScalar = $Value -is [string] -or $Value -is [bool] -or $Value -is [datetime] -or $Value -is [guid] -or $Value -is [System.ValueType]
 
-                if ($Value -is [System.Collections.IEnumerable]) {
-                    $Items = @($Value)
-                    if ($Items.Count -eq 0) { return '<span class="subtle">None</span>' }
-                    $ListItems = foreach ($Item in $Items) { '<li>' + (ConvertTo-HtmlValueList $Item) + '</li>' }
-                    return '<ul class="value-list">' + ($ListItems -join '') + '</ul>'
-                }
-
-                if ($null -ne $Value.PSObject -and $Value.PSObject.Properties.Count -gt 0) {
-                    $Rows = foreach ($Property in $Value.PSObject.Properties) {
-                        '<li><strong>' + (ConvertTo-HtmlSafe $Property.Name) + ':</strong> ' + (ConvertTo-HtmlValueList $Property.Value) + '</li>'
+                    if ($IsScalar) {
+                        $Text = [string]$Value
+                        if ([string]::IsNullOrWhiteSpace($Text)) { return '<span class="subtle">&mdash;</span>' }
+                        return ConvertTo-HtmlSafe $Text
                     }
-                    return '<ul class="value-list">' + ($Rows -join '') + '</ul>'
-                }
 
-                return ConvertTo-HtmlSafe ([string]$Value)
+                    if (($Value -is [System.Collections.IEnumerable]) -and (-not ($Value -is [string]))) {
+                        $Items = @($Value)
+                        if (@($Items).Count -eq 0) { return '<span class="subtle">None</span>' }
+                        $ListItems = foreach ($Item in $Items) { '<li>' + (ConvertTo-HtmlValueList $Item) + '</li>' }
+                        return '<ul class="value-list">' + ($ListItems -join '') + '</ul>'
+                    }
+
+                    $PropertyList = @($Value.PSObject.Properties)
+
+                    if ($PropertyList.Count -gt 0) {
+                        $Rows = foreach ($Property in $PropertyList) {
+                            '<li><strong>' + (ConvertTo-HtmlSafe $Property.Name) + ':</strong> ' + (ConvertTo-HtmlValueList $Property.Value) + '</li>'
+                        }
+                        return '<ul class="value-list">' + ($Rows -join '') + '</ul>'
+                    }
+
+                    return ConvertTo-HtmlSafe ([string]$Value)
+                }
+                catch {
+
+                    return ConvertTo-HtmlSafe ([string]$Value)
+                }
             }
 
             function Get-RecordTitle {
