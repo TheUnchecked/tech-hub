@@ -26,6 +26,22 @@ function Get-AssessmentADPrivilegedGroup {
         [switch]$IncludeDisabled
     )
 
+    function Get-AssessmentSafeMemberValue {
+        param (
+            [Parameter(Mandatory)]
+            [object]$Member,
+
+            [Parameter(Mandatory)]
+            [string]$Name
+        )
+
+        if ($null -ne $Member.PSObject.Properties[$Name]) {
+            return $Member.PSObject.Properties[$Name].Value
+        }
+
+        return $null
+    }
+
     $AssessmentId = [guid]::NewGuid()
     $CheckId = 'AD-PRIVILEGED-GROUP'
     $CheckName = 'Privileged Groups'
@@ -106,37 +122,59 @@ function Get-AssessmentADPrivilegedGroup {
         }
 
         foreach ($Member in $Members) {
-            if ($Member.Enabled -eq $false -and -not $IncludeDisabled) {
-                Write-Verbose -Message ('Skipping disabled member {0}; use -IncludeDisabled to report it.' -f $Member.Name)
+
+            $MemberName = Get-AssessmentSafeMemberValue -Member $Member -Name 'Name'
+            $MemberSamAccountName = Get-AssessmentSafeMemberValue -Member $Member -Name 'SamAccountName'
+            $MemberDistinguishedName = Get-AssessmentSafeMemberValue -Member $Member -Name 'DistinguishedName'
+            $MemberSid = Get-AssessmentSafeMemberValue -Member $Member -Name 'SID'
+            $MemberObjectGuid = Get-AssessmentSafeMemberValue -Member $Member -Name 'ObjectGUID'
+            $MemberEnabled = Get-AssessmentSafeMemberValue -Member $Member -Name 'Enabled'
+            $MemberAdminCount = Get-AssessmentSafeMemberValue -Member $Member -Name 'AdminCount'
+            $MemberPasswordNeverExpires = Get-AssessmentSafeMemberValue -Member $Member -Name 'PasswordNeverExpires'
+            $MemberMembershipType = Get-AssessmentSafeMemberValue -Member $Member -Name 'MembershipType'
+            $MemberResolved = Get-AssessmentSafeMemberValue -Member $Member -Name 'Resolved'
+
+            $MemberObjectClass = Get-AssessmentSafeMemberValue -Member $Member -Name 'ObjectClass'
+            if ([string]::IsNullOrWhiteSpace([string]$MemberObjectClass)) {
+                $MemberObjectClass = 'Unknown'
+            }
+
+            $MemberMembershipPath = Get-AssessmentSafeMemberValue -Member $Member -Name 'MembershipPath'
+            if ($null -eq $MemberMembershipPath) {
+                $MemberMembershipPath = @()
+            }
+
+            if ($MemberEnabled -eq $false -and -not $IncludeDisabled) {
+                Write-Verbose -Message ('Skipping disabled member {0}; use -IncludeDisabled to report it.' -f $MemberName)
                 continue
             }
-            $IdentityValues = @($Member.Name, $Member.SamAccountName, $Member.DistinguishedName, $Member.SID) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+            $IdentityValues = @($MemberName, $MemberSamAccountName, $MemberDistinguishedName, $MemberSid) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
             $Approved = @($ApprovedMemberPatterns | Where-Object { $Pattern = $_; @($IdentityValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
             $Excluded = @($ExcludedMemberPatterns | Where-Object { $Pattern = $_; @($IdentityValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
             $IsServiceAccount = $false
             if ($ServiceAccountPatterns.Count -gt 0) {
-                $ServiceAccountValues = @($Member.Name, $Member.SamAccountName)
+                $ServiceAccountValues = @($MemberName, $MemberSamAccountName)
                 $IsServiceAccount = @($ServiceAccountPatterns | Where-Object { $Pattern = $_; @($ServiceAccountValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
             }
             $Severity = 'Low'
             $Status = 'Finding'
             if ($Excluded -or $Approved) { $Severity = 'Informational'; $Status = 'NotApplicable' }
-            elseif ($GroupIsPrivileged -and $Member.MembershipType -eq 'Indirect' -and $Member.ObjectClass -ne 'Group' -and $ApprovedMemberPatterns.Count -gt 0) { $Severity = 'Critical' }
-            elseif ($GroupIsPrivileged -and ($IsServiceAccount -or ($Member.AdminCount -eq 1))) { $Severity = 'High' }
+            elseif ($GroupIsPrivileged -and $MemberMembershipType -eq 'Indirect' -and $MemberObjectClass -ne 'Group' -and $ApprovedMemberPatterns.Count -gt 0) { $Severity = 'Critical' }
+            elseif ($GroupIsPrivileged -and ($IsServiceAccount -or ($MemberAdminCount -eq 1))) { $Severity = 'High' }
             elseif ($GroupIsPrivileged -and $ApprovedMemberPatterns.Count -gt 0) { $Severity = 'High' }
-            elseif ($Member.Enabled -eq $false -or $Member.PasswordNeverExpires -eq $true -or ($Member.MembershipType -eq 'Indirect' -and $Member.ObjectClass -eq 'Group')) { $Severity = 'Medium' }
-            elseif ($Member.MembershipType -eq 'Indirect' -and $Member.ObjectClass -eq 'Group') { $Severity = 'Medium' }
+            elseif ($MemberEnabled -eq $false -or $MemberPasswordNeverExpires -eq $true -or ($MemberMembershipType -eq 'Indirect' -and $MemberObjectClass -eq 'Group')) { $Severity = 'Medium' }
+            elseif ($MemberMembershipType -eq 'Indirect' -and $MemberObjectClass -eq 'Group') { $Severity = 'Medium' }
             $Evidence = [PSCustomObject][ordered]@{
-                PrivilegedGroup = $GroupName; PrivilegedGroupDN = $GroupDn; MemberName = $Member.Name; MemberSamAccountName = $Member.SamAccountName; MemberObjectType = $Member.ObjectClass; MembershipType = $Member.MembershipType; MembershipPath = $Member.MembershipPath; Enabled = $Member.Enabled; AdminCount = $Member.AdminCount; PasswordNeverExpires = $Member.PasswordNeverExpires; Approved = $Approved; Excluded = $Excluded; IsServiceAccount = $IsServiceAccount; PrivilegedGroupMembership = @($GroupName)
+                PrivilegedGroup = $GroupName; PrivilegedGroupDN = $GroupDn; MemberName = $MemberName; MemberSamAccountName = $MemberSamAccountName; MemberObjectType = $MemberObjectClass; MembershipType = $MemberMembershipType; MembershipPath = $MemberMembershipPath; Enabled = $MemberEnabled; AdminCount = $MemberAdminCount; PasswordNeverExpires = $MemberPasswordNeverExpires; Approved = $Approved; Excluded = $Excluded; IsServiceAccount = $IsServiceAccount; PrivilegedGroupMembership = @($GroupName)
             }
             New-AssessmentADFinding `
                 -AssessmentId $AssessmentId -CheckId $CheckId -CheckName $CheckName -Category 'PrivilegedAccess' `
-                -Title ('Privileged group membership: {0} in {1}' -f $Member.Name, $GroupName) `
+                -Title ('Privileged group membership: {0} in {1}' -f $MemberName, $GroupName) `
                 -Description 'The member is included in a configured privileged Active Directory group.' -Severity $Severity `
-                -Confidence $(if ($Member.Resolved) { 'High' } else { 'Medium' }) -Status $Status `
-                -AffectedObject ([PSCustomObject][ordered]@{ Name = $Member.Name; ObjectClass = $Member.ObjectClass; Enabled = $Member.Enabled }) `
-                -ObjectType $Member.ObjectClass -DistinguishedName $Member.DistinguishedName -SamAccountName $Member.SamAccountName `
-                -ObjectGuid $Member.ObjectGUID -Evidence $Evidence `
+                -Confidence $(if ($MemberResolved) { 'High' } else { 'Medium' }) -Status $Status `
+                -AffectedObject ([PSCustomObject][ordered]@{ Name = $MemberName; ObjectClass = $MemberObjectClass; Enabled = $MemberEnabled }) `
+                -ObjectType $MemberObjectClass -DistinguishedName $MemberDistinguishedName -SamAccountName $MemberSamAccountName `
+                -ObjectGuid $MemberObjectGuid -Evidence $Evidence `
                 -Risk 'Privileged group membership increases the impact of compromise; the risk depends on authorization, scope, nesting, and account controls.' `
                 -Recommendation 'Validate ownership and business need, apply least privilege, review nesting, and remove unneeded membership through a separately reviewed administrative process.' `
                 -References @('https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/implementing-least-privilege-administrative-models') `

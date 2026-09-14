@@ -216,6 +216,12 @@ function Export-AssessmentADAssessmentHtml {
                     ConvertTo-HtmlSafe $Assessment.DomainController
             }
 
+            $HeaderDomainLabel = 'Active Directory Assessment'
+
+            if (-not [string]::IsNullOrWhiteSpace($Domain)) {
+                $HeaderDomainLabel = $Domain
+            }
+
             $ProviderStatus = ''
 
             if (
@@ -451,79 +457,69 @@ function Export-AssessmentADAssessmentHtml {
                 $StatusClass =
                     Get-StatusClass $Finding.Status
 
+                $ReferencesCell = $References
+
+                if ([string]::IsNullOrWhiteSpace($ReferencesCell)) {
+                    $ReferencesCell = '&mdash;'
+                }
+
                 [void]$FindingRows.AppendLine(@"
-<tr>
-    <td>
-        <span class="mono">$CheckId</span>
-        <div class="subtle">$CheckName</div>
-    </td>
+<div class="finding-card">
+    <div class="finding-card-header">
+        <div class="finding-card-title">
+            <span class="mono">$CheckId</span>
+            <div class="subtle">$CheckName &middot; $FindingId</div>
+            <strong>$Title</strong>
+        </div>
 
-    <td>
-        <strong>$Title</strong>
-        <div class="subtle">$FindingId</div>
-    </td>
+        <div class="finding-card-badges">
+            <span class="badge $SeverityClass">$Severity</span>
+            <span class="badge $StatusClass">$Status</span>
+        </div>
+    </div>
 
-    <td>
-        <span class="badge $SeverityClass">
-            $Severity
-        </span>
-    </td>
-
-    <td>
-        <span class="badge $StatusClass">
-            $Status
-        </span>
-    </td>
-
-    <td>$Confidence</td>
-
-    <td>
-        <strong>$ObjectType</strong>
-        <div class="object-json">$ObjectName</div>
-        <div class="dn">$DistinguishedName</div>
-    </td>
-
-    <td>
-        <details>
-            <summary>View details</summary>
-
-            <div class="detail-block">
-                <h4>Risk</h4>
-                <p>$Risk</p>
-            </div>
-
-            <div class="detail-block">
-                <h4>Recommendation</h4>
-                <p>$Recommendation</p>
-            </div>
-
-            <div class="detail-block">
-                <h4>Evidence</h4>
-                <pre>$Evidence</pre>
-            </div>
-
-            <div class="detail-block">
-                <h4>References</h4>
-                $References
-            </div>
-        </details>
-    </td>
-</tr>
+    <table class="finding-detail-table">
+        <tr>
+            <th>Affected object</th>
+            <td>
+                <strong>$ObjectType</strong>
+                <div class="object-json">$ObjectName</div>
+                <div class="dn">$DistinguishedName</div>
+            </td>
+        </tr>
+        <tr>
+            <th>Confidence</th>
+            <td>$Confidence</td>
+        </tr>
+        <tr>
+            <th>Risk</th>
+            <td>$Risk</td>
+        </tr>
+        <tr>
+            <th>Recommendation</th>
+            <td>$Recommendation</td>
+        </tr>
+        <tr>
+            <th>Evidence</th>
+            <td><pre>$Evidence</pre></td>
+        </tr>
+        <tr>
+            <th>References</th>
+            <td>$ReferencesCell</td>
+        </tr>
+    </table>
+</div>
 "@)
             }
 
             if ($FindingRows.Length -eq 0) {
 
                 [void]$FindingRows.AppendLine(@"
-<tr>
-    <td colspan="7">
-        <div class="empty-state">
-            <div class="empty-icon">✓</div>
+<div class="empty-state">
+            <div class="empty-icon">&check;</div>
             <strong>No security findings were reported.</strong>
             <span>The assessment did not return any finding records.</span>
         </div>
-    </td>
-</tr>
 "@)
             }
 
@@ -1438,6 +1434,131 @@ pre {
 }
 
 /* ============================================================
+   FINDING CARDS
+   ============================================================ */
+
+.finding-list {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 14px;
+}
+
+.finding-card {
+
+    border: 1px solid var(--gray-200);
+
+    border-radius: 9px;
+
+    background: var(--white);
+
+    box-shadow:
+        0 2px 7px rgba(15,23,42,.04);
+
+    overflow: hidden;
+}
+
+.finding-card-header {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding: 16px 18px;
+
+    background: var(--gray-50);
+
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.finding-card-title strong {
+
+    display: block;
+
+    font-size: 14px;
+
+    color: var(--gray-900);
+}
+
+.finding-card-badges {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    align-items: center;
+
+    gap: 8px;
+
+    white-space: nowrap;
+}
+
+.finding-detail-table {
+
+    width: 100%;
+
+    min-width: 0;
+
+    border-collapse: collapse;
+}
+
+.finding-detail-table tr {
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.finding-detail-table tr:last-child {
+    border-bottom: 0;
+}
+
+.finding-detail-table th {
+
+    width: 160px;
+
+    min-width: 120px;
+
+    padding: 10px 18px;
+
+    text-align: left;
+
+    vertical-align: top;
+
+    font-size: 11px;
+
+    font-weight: 700;
+
+    text-transform: uppercase;
+
+    letter-spacing: .5px;
+
+    color: var(--gray-500);
+
+    background: transparent;
+
+    border: 0;
+
+    white-space: normal;
+}
+
+.finding-detail-table td {
+
+    padding: 10px 18px 10px 0;
+
+    vertical-align: top;
+
+    color: var(--gray-700);
+
+    border: 0;
+}
+
+/* ============================================================
    EMPTY STATE
    ============================================================ */
 
@@ -1605,7 +1726,8 @@ pre {
 
     .kpi,
     .status-card,
-    .table-wrapper {
+    .table-wrapper,
+    .finding-card {
         break-inside: avoid;
     }
 
@@ -1647,13 +1769,13 @@ pre {
     <div class="brand">
 
         <div class="brand-mark">
-            TH
+            AD
         </div>
 
         <div>
 
             <div class="brand-name">
-                Assessment Security Assessment
+                $HeaderDomainLabel
             </div>
 
         </div>
@@ -1954,53 +2076,9 @@ pre {
         Security Findings
     </h2>
 
-    <div class="table-wrapper">
+    <div class="finding-list">
 
-        <table>
-
-            <thead>
-
-                <tr>
-
-                    <th>
-                        Check
-                    </th>
-
-                    <th>
-                        Finding
-                    </th>
-
-                    <th>
-                        Severity
-                    </th>
-
-                    <th>
-                        Status
-                    </th>
-
-                    <th>
-                        Confidence
-                    </th>
-
-                    <th>
-                        Affected Object
-                    </th>
-
-                    <th>
-                        Details
-                    </th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-                $FindingRows
-
-            </tbody>
-
-        </table>
+        $FindingRows
 
     </div>
 
@@ -2183,7 +2261,7 @@ pre {
 
     <div>
         Read-only assessment
-        ·
+        &middot;
         No Active Directory modifications performed
     </div>
 
