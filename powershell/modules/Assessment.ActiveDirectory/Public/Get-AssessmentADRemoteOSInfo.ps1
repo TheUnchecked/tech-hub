@@ -125,17 +125,59 @@ function Get-AssessmentADRemoteOSInfo {
                             $Session
                         )
 
-                        Get-CimInstance `
-                            -CimSession $Session `
-                            -ClassName Win32_OperatingSystem `
-                            -ErrorAction Stop |
-                        Select-Object `
-                            CSName,
-                            Caption,
-                            Version,
-                            BuildNumber,
-                            OperatingSystemSKU,
-                            ProductType
+                        $OSInfo =
+                            Get-CimInstance `
+                                -CimSession $Session `
+                                -ClassName Win32_OperatingSystem `
+                                -ErrorAction Stop |
+                            Select-Object `
+                                CSName,
+                                Caption,
+                                Version,
+                                BuildNumber,
+                                OperatingSystemSKU,
+                                ProductType
+
+                        # InstallationType (e.g. "Client", "Server",
+                        # "Server Core") is not exposed by
+                        # Win32_OperatingSystem, but is available in the
+                        # registry on the same CIM session via StdRegProv.
+                        $InstallationType = $null
+
+                        try {
+
+                            $RegProv =
+                                Get-CimInstance `
+                                    -CimSession $Session `
+                                    -Namespace 'root\default' `
+                                    -ClassName StdRegProv `
+                                    -ErrorAction Stop
+
+                            $RegResult =
+                                Invoke-CimMethod `
+                                    -InputObject $RegProv `
+                                    -MethodName GetStringValue `
+                                    -Arguments @{
+                                        hDefKey     = [uint32]2147483650
+                                        sSubKeyName = 'SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+                                        sValueName  = 'InstallationType'
+                                    } `
+                                    -ErrorAction Stop
+
+                            if ($RegResult.ReturnValue -eq 0) {
+                                $InstallationType = $RegResult.sValue
+                            }
+                        }
+                        catch {
+
+                            $InstallationType = $null
+                        }
+
+                        $OSInfo |
+                            Add-Member `
+                                -NotePropertyName WindowsInstallationType `
+                                -NotePropertyValue $InstallationType `
+                                -PassThru
                     }
             }
 
@@ -314,7 +356,14 @@ function Get-AssessmentADRemoteOSInfo {
                     $TargetType
 
                 WindowsInstallationType = `
-                    $null
+                    $(
+                        if ($OS.PSObject.Properties['WindowsInstallationType']) {
+                            [string]$OS.WindowsInstallationType
+                        }
+                        else {
+                            $null
+                        }
+                    )
 
                 Status = `
                     'Available'

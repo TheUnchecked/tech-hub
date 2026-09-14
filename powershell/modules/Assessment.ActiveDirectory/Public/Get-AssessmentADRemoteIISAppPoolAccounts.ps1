@@ -11,12 +11,18 @@ function Get-AssessmentADRemoteIISAppPoolAccounts {
             ValueFromPipelineByPropertyName
         )]
         [Alias('CN','Name')]
-        [string]$ComputerName
+        [string]$ComputerName,
+
+        [Parameter()]
+        [System.Management.Automation.PSCredential]$Credential
     )
 
     process {
         try {
-            Invoke-Command -ComputerName $ComputerName -ErrorAction Stop -ScriptBlock {
+            $InvokeParameters = @{
+                ComputerName = $ComputerName
+                ErrorAction  = 'Stop'
+                ScriptBlock  = {
 
                 function Convert-AssessmentIISIdentity {
                     param(
@@ -118,6 +124,8 @@ function Get-AssessmentADRemoteIISAppPoolAccounts {
                             ComputerName = $env:COMPUTERNAME
                             AppPoolName  = $pool.Name
                             AccountName  = $account
+                            Status       = 'Available'
+                            ErrorMessage = $null
                             IsReadOnly   = $true
                         }
                     }
@@ -195,17 +203,33 @@ function Get-AssessmentADRemoteIISAppPoolAccounts {
                             ComputerName = $env:COMPUTERNAME
                             AppPoolName  = $name
                             AccountName  = $account
+                            Status       = 'Available'
+                            ErrorMessage = $null
                             IsReadOnly   = $true
                         }
                     }
                 }
 
                 $results
+                }
             }
+
+            if ($null -ne $Credential) {
+                $InvokeParameters.Credential = $Credential
+            }
+
+            Invoke-Command @InvokeParameters
         }
         catch {
-            Write-Error `
-                -Message "[$ComputerName] Remote query failed: $($_.Exception.Message)"
+
+            [PSCustomObject][ordered]@{
+                ComputerName = $ComputerName
+                AppPoolName  = $null
+                AccountName  = $null
+                Status       = 'Error'
+                ErrorMessage = $_.Exception.Message
+                IsReadOnly   = $true
+            }
         }
     }
 }

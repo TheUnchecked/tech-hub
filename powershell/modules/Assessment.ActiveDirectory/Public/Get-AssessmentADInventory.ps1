@@ -5,338 +5,248 @@ Set-StrictMode -Version Latest
 function Get-AssessmentADInventory {
     <#
     .SYNOPSIS
-        Collects a read-only Active Directory inventory through the Assessment provider.
+        Read-only inventory of Active Directory objects.
 
     .DESCRIPTION
-        Collects users, computers, groups, managed service accounts,
-        group managed service accounts and organizational units.
-
-        All directory access is delegated to the provider.
-        No Active Directory cmdlets are used directly.
-
-        The function requests only provider-supported LDAP properties.
-        Group-specific properties are intentionally not requested globally
-        because they are not valid for every object class.
-
-    .PARAMETER Provider
-        Assessment Active Directory provider.
+        Collects organizational units, users, computers, managed service
+        accounts (MSA/gMSA) and groups directly via the ActiveDirectory
+        module. One normalized record per object.
 
     .PARAMETER Server
         Optional domain controller.
 
     .PARAMETER SearchBase
-        Optional LDAP search base.
+        Optional Distinguished Name to limit the search.
+
+    .PARAMETER ExpandGroupMembership
+        Recursively expands nested group membership. Direct members only
+        by default.
+
+    .PARAMETER Credential
+        Optional alternate credential.
 
     .OUTPUTS
-        Normalized inventory objects.
-
-    .NOTES
-        Read-only assessment function.
+        ObjectName, OU, ObjectType, Description, Owner, CreationTimestamp,
+        UpdateTimestamp, Enabled, LastPasswordChangeTimestamp,
+        LastLogonTimestamp, GroupType, GroupScope, GroupMembers
     #>
-
     [CmdletBinding()]
     param(
-        [Parameter()]
-        [object]$Provider,
-
         [Parameter()]
         [string]$Server,
 
         [Parameter()]
-        [string]$SearchBase
+        [string]$SearchBase,
+
+        [Parameter()]
+        [switch]$ExpandGroupMembership,
+
+        [Parameter()]
+        [System.Management.Automation.PSCredential]$Credential
     )
 
-    # ------------------------------------------------------------
-    # Provider initialization
-    # ------------------------------------------------------------
+    Import-Module ActiveDirectory -ErrorAction Stop | Out-Null
 
-    if ($null -eq $Provider) {
-        $Provider = New-AssessmentADProvider -Server $Server
+    $Common = @{}
+
+    if (-not [string]::IsNullOrWhiteSpace($Server)) { $Common.Server = $Server }
+    if ($PSBoundParameters.ContainsKey('Credential')) { $Common.Credential = $Credential }
+    if (-not [string]::IsNullOrWhiteSpace($SearchBase)) { $Common.SearchBase = $SearchBase; $Common.SearchScope = 'Subtree' }
+
+    $IsoFormat = "yyyy-MM-ddTHH:mm:ss'Z'"
+
+    function Convert-ToIso8601 {
+        param([Nullable[datetime]]$Date)
+        if ($null -eq $Date) { return $null }
+        return $Date.ToUniversalTime().ToString($IsoFormat)
     }
 
-    if ($null -eq $Provider) {
-        return
+    function Convert-FileTimeToIso8601 {
+        param([Nullable[int64]]$FileTime)
+        if ($null -eq $FileTime -or $FileTime -le 0) { return $null }
+        try { [DateTime]::FromFileTimeUtc($FileTime).ToString($IsoFormat) } catch { $null }
     }
 
-    # ------------------------------------------------------------
-    # Queries
-    # ------------------------------------------------------------
-
-    $queries = @(
-        [PSCustomObject]@{
-            ObjectType = 'User'
-            Filter     = '(&(objectCategory=person)(objectClass=user))'
-        }
-
-        [PSCustomObject]@{
-            ObjectType = 'Computer'
-            Filter     = '(&(objectCategory=computer))'
-        }
-
-        [PSCustomObject]@{
-            ObjectType = 'MSA'
-            Filter     = '(&(objectClass=msDS-ManagedServiceAccount))'
-        }
-
-        [PSCustomObject]@{
-            ObjectType = 'gMSA'
-            Filter     = '(&(objectClass=msDS-GroupManagedServiceAccount))'
-        }
-
-        [PSCustomObject]@{
-            ObjectType = 'Group'
-            Filter     = '(&(objectCategory=group))'
-        }
-
-        [PSCustomObject]@{
-            ObjectType = 'Organizational Unit'
-            Filter     = '(objectCategory=organizationalUnit)'
-        }
-    )
-
-    # ------------------------------------------------------------
-    # Provider-supported common properties
-    #
-    # IMPORTANT:
-    # Do NOT add groupCategory/groupScope here.
-    #
-    # Those attributes are group-specific and caused:
-    #
-    #   One or more properties are invalid.
-    #   Parameter name: groupCategory
-    #
-    # ------------------------------------------------------------
-
-    $properties = @(
-        'Name'
-        'DistinguishedName'
-        'ObjectGUID'
-        'ObjectClass'
-        'SamAccountName'
-        'Enabled'
-        'Description'
-        'canonicalName'
-        'whenCreated'
-        'whenChanged'
-        'pwdLastSet'
-        'lastLogonTimestamp'
-    )
-
-    # ------------------------------------------------------------
-    # Query Active Directory through provider
-    # ------------------------------------------------------------
-
-    foreach ($query in $queries) {
-
-        Write-Verbose (
-            "Querying AD objects: ObjectType={0}; Filter={1}" -f
-            $query.ObjectType,
-            $query.Filter
-        )
-
+    function Get-OwnerSam {
+        param([string]$DistinguishedName)
         try {
+            $Acl = Get-Acl -Path ("AD:\" + $DistinguishedName) -ErrorAction Stop
+            $Owner = $Acl.Owner
 
-            $result = $Provider.GetADObjects(
-                $query.Filter,
-                $SearchBase,
-                $properties
-            )
+            if ([string]::IsNullOrWhiteSpace($Owner)) { return $null }
 
+            if ($Owner -match '^[^\\]+\\(?<sam>.+)$') {
+                return $Matches['sam']
+            }
+
+            if ($Owner -match '^S-\d-') {
+                try {
+                    $Sid = New-Object System.Security.Principal.SecurityIdentifier($Owner)
+                    $Nt = $Sid.Translate([System.Security.Principal.NTAccount])
+                    if ($Nt.Value -match '^[^\\]+\\(?<sam>.+)$') { return $Matches['sam'] }
+                }
+                catch {}
+            }
+
+            return $Owner
         }
         catch {
-
-            Write-Verbose (
-                "Provider query failed for ObjectType '{0}': {1}" -f
-                $query.ObjectType,
-                $_.Exception.Message
-            )
-
-            continue
-        }
-
-        # --------------------------------------------------------
-        # Validate provider result
-        # --------------------------------------------------------
-
-        if ($null -eq $result) {
-            Write-Verbose (
-                "Provider returned NULL for ObjectType '{0}'." -f
-                $query.ObjectType
-            )
-
-            continue
-        }
-
-        if ($result.Status -in @('NotAvailable', 'Error')) {
-
-            Write-Verbose (
-                "Provider returned status '{0}' for ObjectType '{1}'. Error: {2}" -f
-                $result.Status,
-                $query.ObjectType,
-                $result.ErrorMessage
-            )
-
-            continue
-        }
-
-        # --------------------------------------------------------
-        # Normalize provider objects
-        # --------------------------------------------------------
-
-        foreach ($object in @($result.Data)) {
-
-            if ($null -eq $object) {
-                continue
-            }
-
-            # ----------------------------------------------------
-            # Distinguished Name
-            # ----------------------------------------------------
-
-            $dn = $null
-
-            if ($object.PSObject.Properties['DistinguishedName']) {
-                $dn = [string]$object.DistinguishedName
-            }
-
-            if ([string]::IsNullOrWhiteSpace($dn)) {
-                continue
-            }
-
-            # ----------------------------------------------------
-            # Exclude AD System container and descendants
-            # ----------------------------------------------------
-
-            if ($dn -match '(?i)(^|,)CN=System,') {
-                continue
-            }
-
-            # ----------------------------------------------------
-            # Initialize optional properties
-            # ----------------------------------------------------
-
-            $name              = $null
-            $samAccountName    = $null
-            $objectClass       = $null
-            $enabled           = $null
-            $description       = $null
-            $canonicalName     = $null
-            $whenCreated       = $null
-            $whenChanged       = $null
-            $pwdLastSet        = $null
-            $lastLogonTimestamp = $null
-            $objectGuid        = $null
-
-            # ----------------------------------------------------
-            # Safely read provider properties
-            # ----------------------------------------------------
-
-            if ($object.PSObject.Properties['Name']) {
-                $name = $object.Name
-            }
-
-            if ($object.PSObject.Properties['SamAccountName']) {
-                $samAccountName = $object.SamAccountName
-            }
-
-            if ($object.PSObject.Properties['ObjectClass']) {
-                $objectClass = $object.ObjectClass
-            }
-
-            if ($object.PSObject.Properties['Enabled']) {
-                $enabled = $object.Enabled
-            }
-
-            if ($object.PSObject.Properties['Description']) {
-                $description = $object.Description
-            }
-
-            if ($object.PSObject.Properties['canonicalName']) {
-                $canonicalName = $object.canonicalName
-            }
-
-            if ($object.PSObject.Properties['whenCreated']) {
-                $whenCreated = $object.whenCreated
-            }
-
-            if ($object.PSObject.Properties['whenChanged']) {
-                $whenChanged = $object.whenChanged
-            }
-
-            if ($object.PSObject.Properties['pwdLastSet']) {
-                $pwdLastSet = $object.pwdLastSet
-            }
-
-            if ($object.PSObject.Properties['lastLogonTimestamp']) {
-                $lastLogonTimestamp = $object.lastLogonTimestamp
-            }
-
-            # ----------------------------------------------------
-            # Object GUID
-            # ----------------------------------------------------
-
-            if ($object.PSObject.Properties['ObjectGUID']) {
-
-                try {
-
-                    if ($null -ne $object.ObjectGUID) {
-                        $objectGuid = [guid]$object.ObjectGUID
-                    }
-
-                }
-                catch {
-
-                    $objectGuid = $null
-                }
-            }
-
-            # ----------------------------------------------------
-            # Object name fallback
-            # ----------------------------------------------------
-
-            $objectName = $samAccountName
-
-            if ([string]::IsNullOrWhiteSpace([string]$objectName)) {
-                $objectName = $name
-            }
-
-            # ----------------------------------------------------
-            # Normalized assessment object
-            # ----------------------------------------------------
-
-            [PSCustomObject][ordered]@{
-
-                ObjectName          = $objectName
-                ObjectType          = $query.ObjectType
-
-                Name                = $name
-                SamAccountName      = $samAccountName
-                DistinguishedName   = $dn
-                ObjectGuid          = $objectGuid
-                ObjectClass         = $objectClass
-
-                Enabled             = $enabled
-                Description         = $description
-                CanonicalName       = $canonicalName
-
-                CreationTimestamp   = $whenCreated
-                UpdateTimestamp     = $whenChanged
-
-                PasswordLastSet     = $pwdLastSet
-                LastLogonTimestamp  = $lastLogonTimestamp
-
-                # Group-specific properties are intentionally left
-                # empty here. They must not be requested globally
-                # from the provider because the provider validates
-                # requested LDAP properties.
-
-                GroupType           = $null
-                GroupScope          = $null
-
-                ProviderStatus      = $result.Status
-                ProviderServer      = $result.Server
-                IsReadOnly          = $true
-            }
+            return $null
         }
     }
+
+    function New-InventoryRecord {
+        param(
+            [Microsoft.ActiveDirectory.Management.ADObject]$Object,
+            [ValidateSet('User', 'MSA', 'gMSA', 'Group', 'Organizational Unit', 'Computer')]
+            [string]$ObjectType,
+            [string[]]$GroupMembersSam = @(),
+            [bool]$EnabledApplicable = $false,
+            [Nullable[bool]]$Enabled = $null,
+            [Nullable[int64]]$PwdLastSet = $null,
+            [Nullable[int64]]$LastLogonTs = $null,
+            [string]$GroupCategory = $null,
+            [string]$GroupScope = $null
+        )
+
+        $Dn = $Object.DistinguishedName
+
+        if ($Dn -match ',CN=System,') { return }
+
+        $Canonical = $Object.canonicalName
+        $OuPath = $null
+        $LeafName = $Object.Name
+
+        if ($Canonical) {
+            $Parts = $Canonical -split '/'
+            if ($Parts.Count -gt 1) {
+                $OuPath = ($Parts[0..($Parts.Count - 2)] -join '/')
+                $LeafName = $Parts[-1]
+            }
+            else {
+                $OuPath = $Canonical
+            }
+        }
+
+        $ObjectName = if ($Object.SamAccountName) { $Object.SamAccountName } else { $LeafName }
+        $OwnerSam = Get-OwnerSam -DistinguishedName $Dn
+
+        [PSCustomObject][ordered]@{
+            ObjectName                  = $ObjectName
+            OU                          = $OuPath
+            ObjectType                  = $ObjectType
+            Description                 = $Object.Description
+            Owner                       = $OwnerSam
+            CreationTimestamp           = Convert-ToIso8601 $Object.whenCreated
+            UpdateTimestamp             = Convert-ToIso8601 $Object.whenChanged
+            Enabled                     = if ($EnabledApplicable) { $Enabled } else { $null }
+            LastPasswordChangeTimestamp = if ($EnabledApplicable) { Convert-FileTimeToIso8601 $PwdLastSet } else { $null }
+            LastLogonTimestamp          = if ($EnabledApplicable) { Convert-FileTimeToIso8601 $LastLogonTs } else { $null }
+            GroupType                   = if ($ObjectType -eq 'Group' -and $GroupCategory) { $GroupCategory } else { $null }
+            GroupScope                  = if ($ObjectType -eq 'Group' -and $GroupScope) { $GroupScope } else { $null }
+            GroupMembers                = if ($ObjectType -eq 'Group' -and $GroupMembersSam.Count -gt 0) { $GroupMembersSam -join ',' } else { $null }
+            IsReadOnly                  = $true
+        }
+    }
+
+    # ----------------------------------------------------------------
+    # Organizational Units
+    # ----------------------------------------------------------------
+
+    $OuProps = @('distinguishedName', 'name', 'whenCreated', 'whenChanged', 'canonicalName', 'description')
+    Get-ADOrganizationalUnit @Common -LDAPFilter '(ou=*)' -Properties $OuProps -ErrorAction SilentlyContinue |
+        ForEach-Object { New-InventoryRecord -Object $_ -ObjectType 'Organizational Unit' }
+
+    # ----------------------------------------------------------------
+    # Users
+    # ----------------------------------------------------------------
+
+    $AccountProps = @('distinguishedName', 'name', 'samAccountName', 'enabled', 'whenCreated', 'whenChanged', 'canonicalName', 'description', 'pwdLastSet', 'lastLogonTimestamp')
+    Get-ADUser @Common -Filter * -Properties $AccountProps -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            New-InventoryRecord -Object $_ -ObjectType 'User' -EnabledApplicable $true `
+                -Enabled $_.Enabled -PwdLastSet $_.pwdLastSet -LastLogonTs $_.lastLogonTimestamp
+        }
+
+    # ----------------------------------------------------------------
+    # Computers
+    # ----------------------------------------------------------------
+
+    Get-ADComputer @Common -Filter * -Properties $AccountProps -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            New-InventoryRecord -Object $_ -ObjectType 'Computer' -EnabledApplicable $true `
+                -Enabled $_.Enabled -PwdLastSet $_.pwdLastSet -LastLogonTs $_.lastLogonTimestamp
+        }
+
+    # ----------------------------------------------------------------
+    # Managed Service Accounts (MSA / gMSA)
+    # ----------------------------------------------------------------
+
+    Get-ADObject @Common -LDAPFilter '(objectClass=msDS-ManagedServiceAccount)' -Properties $AccountProps -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            New-InventoryRecord -Object $_ -ObjectType 'MSA' -EnabledApplicable $true `
+                -Enabled $_.Enabled -PwdLastSet $_.pwdLastSet -LastLogonTs $_.lastLogonTimestamp
+        }
+
+    Get-ADObject @Common -LDAPFilter '(objectClass=msDS-GroupManagedServiceAccount)' -Properties $AccountProps -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            New-InventoryRecord -Object $_ -ObjectType 'gMSA' -EnabledApplicable $true `
+                -Enabled $_.Enabled -PwdLastSet $_.pwdLastSet -LastLogonTs $_.lastLogonTimestamp
+        }
+
+    # ----------------------------------------------------------------
+    # Groups
+    # ----------------------------------------------------------------
+
+    $GroupProps = @('distinguishedName', 'name', 'samAccountName', 'whenCreated', 'whenChanged', 'canonicalName', 'description', 'groupCategory', 'groupScope')
+
+    Get-ADGroup @Common -Filter * -Properties $GroupProps -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            $Group = $_
+            $MembersSam = @()
+
+            try {
+                $Members = if ($ExpandGroupMembership) {
+                    Get-ADGroupMember @Common -Identity $Group.DistinguishedName -Recursive -ErrorAction Stop
+                }
+                else {
+                    Get-ADGroupMember @Common -Identity $Group.DistinguishedName -ErrorAction Stop
+                }
+
+                foreach ($Member in $Members) {
+                    try {
+                        switch ($Member.objectClass) {
+                            'user' {
+                                $Resolved = Get-ADUser @Common -Identity $Member.DistinguishedName -Properties SamAccountName -ErrorAction Stop
+                                if ($Resolved.SamAccountName) { $MembersSam += $Resolved.SamAccountName }
+                            }
+                            'computer' {
+                                $Resolved = Get-ADComputer @Common -Identity $Member.DistinguishedName -Properties SamAccountName -ErrorAction Stop
+                                if ($Resolved.SamAccountName) { $MembersSam += $Resolved.SamAccountName }
+                            }
+                            'group' {
+                                # When -Recursive is used, nested groups are already expanded by
+                                # Get-ADGroupMember, so only list the child group's own SAM otherwise.
+                                if (-not $ExpandGroupMembership) {
+                                    $Resolved = Get-ADGroup @Common -Identity $Member.DistinguishedName -Properties SamAccountName -ErrorAction Stop
+                                    if ($Resolved.SamAccountName) { $MembersSam += $Resolved.SamAccountName }
+                                }
+                            }
+                            { $_ -in @('msDS-ManagedServiceAccount', 'msDS-GroupManagedServiceAccount') } {
+                                $Resolved = Get-ADObject @Common -Identity $Member.DistinguishedName -Properties SamAccountName -ErrorAction SilentlyContinue
+                                if ($Resolved.SamAccountName) { $MembersSam += $Resolved.SamAccountName }
+                            }
+                            default {
+                                # Contacts, foreign security principals, etc. have no SamAccountName.
+                            }
+                        }
+                    }
+                    catch {}
+                }
+            }
+            catch {}
+
+            New-InventoryRecord -Object $Group -ObjectType 'Group' -GroupMembersSam $MembersSam `
+                -GroupCategory $Group.GroupCategory -GroupScope $Group.GroupScope
+        }
 }
