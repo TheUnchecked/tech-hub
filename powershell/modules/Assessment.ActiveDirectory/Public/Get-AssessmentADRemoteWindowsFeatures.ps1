@@ -143,6 +143,34 @@ function Get-AssessmentADRemoteWindowsFeatures {
                         }
 
                         # ------------------------------------------------
+                        # DISM fallback (e.g. Server Core without the
+                        # ServerManager module, or Get-WindowsOptionalFeature
+                        # unavailable)
+                        # ------------------------------------------------
+
+                        if ($featureNames.Count -eq 0) {
+
+                            try {
+
+                                $lines = & dism.exe /online /Get-Features /Format:Table 2>$null
+
+                                $featureNames = @(
+                                    $lines |
+                                    Where-Object {
+                                        $_ -match '^\S+\s+Enabled\s*$'
+                                    } |
+                                    ForEach-Object {
+                                        ($_ -split '\s+')[0]
+                                    }
+                                )
+                            }
+                            catch {
+
+                                $featureNames = @()
+                            }
+                        }
+
+                        # ------------------------------------------------
                         # Return normalized records
                         # ------------------------------------------------
 

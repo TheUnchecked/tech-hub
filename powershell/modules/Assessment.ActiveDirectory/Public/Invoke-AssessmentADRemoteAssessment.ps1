@@ -3,120 +3,95 @@
 Set-StrictMode -Version Latest
 
 function Invoke-AssessmentADRemoteAssessment {
+    <#
+    .SYNOPSIS
+        Runs one or more remote infrastructure collectors against a computer.
+
+    .DESCRIPTION
+        Dispatches to the selected Get-AssessmentADRemote* collectors and
+        returns their combined results, each record tagged with the
+        Collector name that produced it.
+
+    .PARAMETER ComputerName
+        Target computer. Supports pipeline input.
+
+    .PARAMETER Collector
+        One or more of: ServiceAccounts, ScheduledTasks, IISAppPools,
+        LocalGroups, NetworkShares, OSInfo, WindowsFeatures, UserRights.
+        Runs all of them by default.
+
+    .PARAMETER Credential
+        Optional alternate credential, forwarded to collectors that support it.
+
+    .OUTPUTS
+        The combined objects from each collector, each with an added Collector
+        property. A collector that fails outright for a computer emits one
+        record with Status = 'Error' and the failure message instead of data.
+    #>
     [CmdletBinding()]
     param(
-        [Parameter(
-            Mandatory,
-            ValueFromPipeline,
-            ValueFromPipelineByPropertyName
-        )]
-        [Alias('Computer','CN','Name')]
+        [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('Computer', 'CN', 'Name')]
         [string]$ComputerName,
 
         [Parameter()]
-        [object]$Assessment,
+        [string[]]$Collector,
 
         [Parameter()]
-        [string[]]$Collector
+        [System.Management.Automation.PSCredential]$Credential
     )
 
     process {
 
-        # Create one AssessmentResult per computer when the
-        # Assessment parameter is not explicitly supplied.
-        $CurrentAssessment = $Assessment
-
-        if ($null -eq $CurrentAssessment) {
-            $CurrentAssessment = New-AssessmentADAssessmentResult
-        }
-
         $CollectorMap = [ordered]@{
-            ServiceAccounts = 'Get-AssessmentADServiceAccounts'
+            ServiceAccounts = 'Get-AssessmentADRemoteServiceAccounts'
             ScheduledTasks  = 'Get-AssessmentADRemoteScheduledTaskAccounts'
             IISAppPools     = 'Get-AssessmentADRemoteIISAppPoolAccounts'
-            LocalGroups     = 'Get-AssessmentADRemoteLocalGroupMembers'
+            LocalGroups     = 'Get-AssessmentADRemoteLocalGroups'
             NetworkShares   = 'Get-AssessmentADRemoteNetworkShareACLs'
             OSInfo          = 'Get-AssessmentADRemoteOSInfo'
             WindowsFeatures = 'Get-AssessmentADRemoteWindowsFeatures'
+            UserRights      = 'Get-AssessmentADRemoteUserRightAssignments'
         }
 
-        $SelectedCollectors = @($CollectorMap.Keys)
-
-        if ($PSBoundParameters.ContainsKey('Collector')) {
-            $SelectedCollectors = @(
-                $Collector |
-                    Where-Object {
-                        $CollectorMap.Contains($_)
-                    }
-            )
+        $SelectedCollectors = if ($PSBoundParameters.ContainsKey('Collector')) {
+            @($Collector | Where-Object { $CollectorMap.Contains($_) })
+        }
+        else {
+            @($CollectorMap.Keys)
         }
 
         foreach ($CollectorName in $SelectedCollectors) {
 
             $FunctionName = $CollectorMap[$CollectorName]
 
-            $BaseRecord = [ordered]@{
-                ComputerName = $ComputerName
-                Collector    = $CollectorName
-                Data         = $null
-                Status       = 'Error'
-                Error        = $null
-                IsReadOnly   = $true
-            }
-
             try {
+                $Command = Get-Command -Name $FunctionName -CommandType Function -ErrorAction Stop
 
-                $Command = Get-Command `
-                    -Name $FunctionName `
-                    -CommandType Function `
-                    -ErrorAction Stop
+                $Parameters = @{ ComputerName = $ComputerName }
 
-                $Parameters = @{
-                    ComputerName = $ComputerName
+                if ($null -ne $Credential -and $Command.Parameters.ContainsKey('Credential')) {
+                    $Parameters.Credential = $Credential
                 }
 
-                $Results = @(
-                    & $Command @Parameters -ErrorAction Stop
-                )
+                $Results = @(& $Command @Parameters -ErrorAction Stop)
 
                 foreach ($Result in $Results) {
 
-                    $Record = [PSCustomObject][ordered]@{
-                        ComputerName = $ComputerName
-                        Collector    = $CollectorName
-                        Data         = $Result
-                        Status       = 'Success'
-                        Error        = $null
-                        IsReadOnly   = $true
-                    }
+                    if ($null -eq $Result) { continue }
 
-                    $CurrentAssessment.AddInventory($Record)
-                }
-
-                if ($Results.Count -eq 0) {
-
-                    $Record = [PSCustomObject][ordered]@{
-                        ComputerName = $ComputerName
-                        Collector    = $CollectorName
-                        Data         = $null
-                        Status       = 'Empty'
-                        Error        = $null
-                        IsReadOnly   = $true
-                    }
-
-                    $CurrentAssessment.AddInventory($Record)
+                    $Result | Add-Member -NotePropertyName Collector -NotePropertyValue $CollectorName -PassThru -Force
                 }
             }
             catch {
 
-                $BaseRecord.Error = $_.Exception.Message
-
-                $CurrentAssessment.AddInventory(
-                    [PSCustomObject]$BaseRecord
-                )
+                [PSCustomObject][ordered]@{
+                    ComputerName = $ComputerName
+                    Collector    = $CollectorName
+                    Status       = 'Error'
+                    Error        = $_.Exception.Message
+                }
             }
         }
-
-        $CurrentAssessment
     }
 }

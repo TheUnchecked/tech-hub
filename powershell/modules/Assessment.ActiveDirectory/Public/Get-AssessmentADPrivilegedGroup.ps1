@@ -1,6 +1,41 @@
+#Requires -Version 5.1
+
+Set-StrictMode -Version Latest
+
 function Get-AssessmentADPrivilegedGroup {
+    <#
+    .SYNOPSIS
+        Lists membership of privileged Active Directory groups.
+
+    .DESCRIPTION
+        Read-only, recursive membership listing of built-in privileged
+        groups (Domain Admins, Enterprise Admins, Schema Admins,
+        Administrators, Account Operators, Server Operators, Backup
+        Operators, Domain Controllers) plus any extra group patterns
+        supplied. Reports facts only; it does not compute a risk
+        severity.
+
+    .PARAMETER Server
+        Optional domain controller.
+
+    .PARAMETER SearchBase
+        Optional Distinguished Name to limit the group search.
+
+    .PARAMETER GroupPatterns
+        Extra group name/DN wildcard patterns to include, on top of the
+        built-in privileged groups.
+
+    .PARAMETER IncludeDisabled
+        Includes disabled members in the output. Excluded by default.
+
+    .OUTPUTS
+        GroupName, GroupDistinguishedName, MemberName, MemberSamAccountName,
+        MemberObjectClass, MemberDistinguishedName, MembershipType
+        (Direct/Indirect), MembershipPath, Enabled, AdminCount,
+        PasswordNeverExpires, Domain
+    #>
     [CmdletBinding()]
-    param (
+    param(
         [Parameter()]
         [string]$Server,
 
@@ -11,23 +46,11 @@ function Get-AssessmentADPrivilegedGroup {
         [string[]]$GroupPatterns = @(),
 
         [Parameter()]
-        [string[]]$ApprovedMemberPatterns = @(),
-
-        [Parameter()]
-        [string[]]$ExcludedMemberPatterns = @(),
-
-        [Parameter()]
-        [string[]]$PrivilegedGroupPatterns = @(),
-
-        [Parameter()]
-        [string[]]$ServiceAccountPatterns = @(),
-
-        [Parameter()]
         [switch]$IncludeDisabled
     )
 
-    function Get-AssessmentSafeMemberValue {
-        param (
+    function Get-SafeMemberValue {
+        param(
             [Parameter(Mandatory)]
             [object]$Member,
 
@@ -42,143 +65,83 @@ function Get-AssessmentADPrivilegedGroup {
         return $null
     }
 
-    $AssessmentId = [guid]::NewGuid()
-    $CheckId = 'AD-PRIVILEGED-GROUP'
-    $CheckName = 'Privileged Groups'
     $DefaultGroups = @('Domain Admins', 'Enterprise Admins', 'Schema Admins', 'Administrators', 'Account Operators', 'Server Operators', 'Backup Operators', 'Domain Controllers')
     $AnalysisPatterns = @($DefaultGroups + $GroupPatterns)
-    $PrivilegePatterns = @($DefaultGroups + $PrivilegedGroupPatterns)
-    $GroupParameters = @{ Filter = '*'; Properties = @('Name', 'SamAccountName', 'DistinguishedName', 'ObjectGUID', 'ObjectClass'); ErrorAction = 'Stop' }
-    if (-not [string]::IsNullOrWhiteSpace($Server)) { $GroupParameters.Server = $Server }
-    if (-not [string]::IsNullOrWhiteSpace($SearchBase)) { $GroupParameters.SearchBase = $SearchBase }
+
+    $GroupParameters = @{
+        Filter      = '*'
+        Properties  = @('Name', 'SamAccountName', 'DistinguishedName', 'ObjectGUID')
+        ErrorAction = 'Stop'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Server)) {
+        $GroupParameters.Server = $Server
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($SearchBase)) {
+        $GroupParameters.SearchBase = $SearchBase
+    }
 
     $Domain = $null
-    $Forest = $null
-    $DomainController = $Server
-    try {
-        $ContextParameters = @{ ErrorAction = 'Stop' }
-        if (-not [string]::IsNullOrWhiteSpace($Server)) { $ContextParameters.Server = $Server }
-        $DomainContext = Get-ADDomain @ContextParameters
-        if ($null -ne $DomainContext) { $Domain = $DomainContext.DNSRoot }
-    }
-    catch { Write-Verbose -Message ('Unable to collect domain context: {0}' -f $_.Exception.Message) }
-    try {
-        $ContextParameters = @{ ErrorAction = 'Stop' }
-        if (-not [string]::IsNullOrWhiteSpace($Server)) { $ContextParameters.Server = $Server }
-        $ForestContext = Get-ADForest @ContextParameters
-        if ($null -ne $ForestContext) { $Forest = $ForestContext.Name }
-    }
-    catch { Write-Verbose -Message ('Unable to collect forest context: {0}' -f $_.Exception.Message) }
 
     try {
-        Write-Verbose -Message 'Querying Active Directory for privileged groups.'
-        $Groups = @(Get-ADGroup @GroupParameters | Where-Object {
-            $Group = $_
-            $GroupValues = @()
-            foreach ($PropertyName in @('Name', 'SamAccountName', 'DistinguishedName')) {
-                if ($null -ne $Group.PSObject.Properties[$PropertyName]) {
-                    $GroupValues += [string]$Group.PSObject.Properties[$PropertyName].Value
-                }
-            }
-            @($AnalysisPatterns | Where-Object {
-                $Pattern = $_
-                @($GroupValues | Where-Object { $_ -like $Pattern }).Count -gt 0
-            }).Count -gt 0
-        })
+        $DomainContextParameters = @{ ErrorAction = 'Stop' }
+
+        if (-not [string]::IsNullOrWhiteSpace($Server)) {
+            $DomainContextParameters.Server = $Server
+        }
+
+        $Domain = (Get-ADDomain @DomainContextParameters).DNSRoot
     }
     catch {
-        Write-Error -ErrorRecord $_
+        Write-Verbose -Message "Unable to resolve domain context: $($_.Exception.Message)"
+    }
+
+    try {
+        $Groups = @(
+            Get-ADGroup @GroupParameters | Where-Object {
+                $Group = $_
+                $GroupValues = @($Group.Name, $Group.SamAccountName, $Group.DistinguishedName)
+                @($AnalysisPatterns | Where-Object { $Pattern = $_; @($GroupValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
+            }
+        )
+    }
+    catch {
+        Write-Error -Message "Privileged group query failed: $($_.Exception.Message)"
         return
     }
 
-    Write-Verbose -Message ('Found {0} configured privileged group(s).' -f $Groups.Count)
-    foreach ($Group in $Groups) {
-        $GroupName = $null
-        $GroupDn = $null
-        $GroupSamAccountName = $null
-        if ($null -ne $Group.PSObject.Properties['Name']) { $GroupName = [string]$Group.PSObject.Properties['Name'].Value }
-        if ($null -ne $Group.PSObject.Properties['DistinguishedName']) { $GroupDn = [string]$Group.PSObject.Properties['DistinguishedName'].Value }
-        if ($null -ne $Group.PSObject.Properties['SamAccountName']) { $GroupSamAccountName = [string]$Group.PSObject.Properties['SamAccountName'].Value }
-        $GroupGuid = $null
-        if ($null -ne $Group.PSObject.Properties['ObjectGUID']) { try { $GroupGuid = [guid]$Group.PSObject.Properties['ObjectGUID'].Value } catch { Write-Verbose -Message 'A group has an invalid ObjectGUID.' } }
-        $GroupIsPrivileged = @($PrivilegePatterns | Where-Object { $GroupName -like $_ -or $GroupDn -like $_ }).Count -gt 0
-        $Visited = @{}
-        $Members = @(Resolve-AssessmentADGroupMembership -GroupIdentity $GroupDn -VisitedGroups $Visited)
+    Write-Verbose -Message "Found $($Groups.Count) configured privileged group(s)."
 
-        if ($Members.Count -eq 0) {
-            New-AssessmentADFinding `
-                -AssessmentId $AssessmentId -CheckId $CheckId -CheckName $CheckName `
-                -Category 'PrivilegedAccess' -Title ('Empty privileged group: {0}' -f $GroupName) `
-                -Description 'The configured privileged group has no readable members.' -Severity 'Informational' `
-                -Confidence 'Medium' -Status 'NotApplicable' `
-                -AffectedObject ([PSCustomObject][ordered]@{ Name = $GroupName; ObjectClass = 'Group'; Enabled = $null }) `
-                -ObjectType 'Group' -DistinguishedName $GroupDn -SamAccountName $GroupSamAccountName `
-                -ObjectGuid $GroupGuid -Evidence ([PSCustomObject][ordered]@{ PrivilegedGroup = $GroupName; PrivilegedGroupDN = $GroupDn; MemberName = $null; MemberSamAccountName = $null; MemberObjectType = $null; MembershipType = $null; MembershipPath = @(); Enabled = $null; AdminCount = $null; PasswordNeverExpires = $null; Approved = $false; Excluded = $false }) `
-                -Risk 'An empty privileged group is informational and should be reviewed for lifecycle and ownership.' `
-                -Recommendation 'Confirm that the group is still required and has an owner; remove or archive it through a separately reviewed administrative process if appropriate.' `
-                -References @('https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/implementing-least-privilege-administrative-models') `
-                -Domain $Domain -Forest $Forest -DomainController $DomainController
-            continue
-        }
+    foreach ($Group in $Groups) {
+
+        $Visited = @{}
+        $Members = @(Resolve-AssessmentADGroupMembership -GroupIdentity $Group.DistinguishedName -VisitedGroups $Visited)
 
         foreach ($Member in $Members) {
 
-            $MemberName = Get-AssessmentSafeMemberValue -Member $Member -Name 'Name'
-            $MemberSamAccountName = Get-AssessmentSafeMemberValue -Member $Member -Name 'SamAccountName'
-            $MemberDistinguishedName = Get-AssessmentSafeMemberValue -Member $Member -Name 'DistinguishedName'
-            $MemberSid = Get-AssessmentSafeMemberValue -Member $Member -Name 'SID'
-            $MemberObjectGuid = Get-AssessmentSafeMemberValue -Member $Member -Name 'ObjectGUID'
-            $MemberEnabled = Get-AssessmentSafeMemberValue -Member $Member -Name 'Enabled'
-            $MemberAdminCount = Get-AssessmentSafeMemberValue -Member $Member -Name 'AdminCount'
-            $MemberPasswordNeverExpires = Get-AssessmentSafeMemberValue -Member $Member -Name 'PasswordNeverExpires'
-            $MemberMembershipType = Get-AssessmentSafeMemberValue -Member $Member -Name 'MembershipType'
-            $MemberResolved = Get-AssessmentSafeMemberValue -Member $Member -Name 'Resolved'
-
-            $MemberObjectClass = Get-AssessmentSafeMemberValue -Member $Member -Name 'ObjectClass'
-            if ([string]::IsNullOrWhiteSpace([string]$MemberObjectClass)) {
-                $MemberObjectClass = 'Unknown'
-            }
-
-            $MemberMembershipPath = Get-AssessmentSafeMemberValue -Member $Member -Name 'MembershipPath'
-            if ($null -eq $MemberMembershipPath) {
-                $MemberMembershipPath = @()
-            }
+            $MemberEnabled = Get-SafeMemberValue -Member $Member -Name 'Enabled'
 
             if ($MemberEnabled -eq $false -and -not $IncludeDisabled) {
-                Write-Verbose -Message ('Skipping disabled member {0}; use -IncludeDisabled to report it.' -f $MemberName)
+                Write-Verbose -Message "Skipping disabled member $(Get-SafeMemberValue -Member $Member -Name 'Name'); use -IncludeDisabled to include it."
                 continue
             }
-            $IdentityValues = @($MemberName, $MemberSamAccountName, $MemberDistinguishedName, $MemberSid) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
-            $Approved = @($ApprovedMemberPatterns | Where-Object { $Pattern = $_; @($IdentityValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
-            $Excluded = @($ExcludedMemberPatterns | Where-Object { $Pattern = $_; @($IdentityValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
-            $IsServiceAccount = $false
-            if ($ServiceAccountPatterns.Count -gt 0) {
-                $ServiceAccountValues = @($MemberName, $MemberSamAccountName)
-                $IsServiceAccount = @($ServiceAccountPatterns | Where-Object { $Pattern = $_; @($ServiceAccountValues | Where-Object { $_ -like $Pattern }).Count -gt 0 }).Count -gt 0
+
+            [PSCustomObject][ordered]@{
+                GroupName              = $Group.Name
+                GroupDistinguishedName = $Group.DistinguishedName
+                MemberName             = Get-SafeMemberValue -Member $Member -Name 'Name'
+                MemberSamAccountName   = Get-SafeMemberValue -Member $Member -Name 'SamAccountName'
+                MemberObjectClass      = Get-SafeMemberValue -Member $Member -Name 'ObjectClass'
+                MemberDistinguishedName = Get-SafeMemberValue -Member $Member -Name 'DistinguishedName'
+                MembershipType         = Get-SafeMemberValue -Member $Member -Name 'MembershipType'
+                MembershipPath         = Get-SafeMemberValue -Member $Member -Name 'MembershipPath'
+                Enabled                = $MemberEnabled
+                AdminCount             = Get-SafeMemberValue -Member $Member -Name 'AdminCount'
+                PasswordNeverExpires   = Get-SafeMemberValue -Member $Member -Name 'PasswordNeverExpires'
+                Domain                 = $Domain
+                IsReadOnly             = $true
             }
-            $Severity = 'Low'
-            $Status = 'Finding'
-            if ($Excluded -or $Approved) { $Severity = 'Informational'; $Status = 'NotApplicable' }
-            elseif ($GroupIsPrivileged -and $MemberMembershipType -eq 'Indirect' -and $MemberObjectClass -ne 'Group' -and $ApprovedMemberPatterns.Count -gt 0) { $Severity = 'Critical' }
-            elseif ($GroupIsPrivileged -and ($IsServiceAccount -or ($MemberAdminCount -eq 1))) { $Severity = 'High' }
-            elseif ($GroupIsPrivileged -and $ApprovedMemberPatterns.Count -gt 0) { $Severity = 'High' }
-            elseif ($MemberEnabled -eq $false -or $MemberPasswordNeverExpires -eq $true -or ($MemberMembershipType -eq 'Indirect' -and $MemberObjectClass -eq 'Group')) { $Severity = 'Medium' }
-            elseif ($MemberMembershipType -eq 'Indirect' -and $MemberObjectClass -eq 'Group') { $Severity = 'Medium' }
-            $Evidence = [PSCustomObject][ordered]@{
-                PrivilegedGroup = $GroupName; PrivilegedGroupDN = $GroupDn; MemberName = $MemberName; MemberSamAccountName = $MemberSamAccountName; MemberObjectType = $MemberObjectClass; MembershipType = $MemberMembershipType; MembershipPath = $MemberMembershipPath; Enabled = $MemberEnabled; AdminCount = $MemberAdminCount; PasswordNeverExpires = $MemberPasswordNeverExpires; Approved = $Approved; Excluded = $Excluded; IsServiceAccount = $IsServiceAccount; PrivilegedGroupMembership = @($GroupName)
-            }
-            New-AssessmentADFinding `
-                -AssessmentId $AssessmentId -CheckId $CheckId -CheckName $CheckName -Category 'PrivilegedAccess' `
-                -Title ('Privileged group membership: {0} in {1}' -f $MemberName, $GroupName) `
-                -Description 'The member is included in a configured privileged Active Directory group.' -Severity $Severity `
-                -Confidence $(if ($MemberResolved) { 'High' } else { 'Medium' }) -Status $Status `
-                -AffectedObject ([PSCustomObject][ordered]@{ Name = $MemberName; ObjectClass = $MemberObjectClass; Enabled = $MemberEnabled }) `
-                -ObjectType $MemberObjectClass -DistinguishedName $MemberDistinguishedName -SamAccountName $MemberSamAccountName `
-                -ObjectGuid $MemberObjectGuid -Evidence $Evidence `
-                -Risk 'Privileged group membership increases the impact of compromise; the risk depends on authorization, scope, nesting, and account controls.' `
-                -Recommendation 'Validate ownership and business need, apply least privilege, review nesting, and remove unneeded membership through a separately reviewed administrative process.' `
-                -References @('https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/implementing-least-privilege-administrative-models') `
-                -Domain $Domain -Forest $Forest -DomainController $DomainController
         }
     }
 }

@@ -11,7 +11,10 @@ function Get-AssessmentADRemoteScheduledTaskAccounts {
             ValueFromPipelineByPropertyName
         )]
         [Alias('CN','Name','Computer')]
-        [string]$ComputerName
+        [string]$ComputerName,
+
+        [Parameter()]
+        [System.Management.Automation.PSCredential]$Credential
     )
 
     begin {
@@ -71,48 +74,52 @@ function Get-AssessmentADRemoteScheduledTaskAccounts {
         function Get-AssessmentTasksViaCim {
             param(
                 [Parameter(Mandatory)]
-                [string]$Target
+                [string]$Target,
+
+                [Parameter()]
+                [System.Management.Automation.PSCredential]$Credential
             )
 
-            $session = $null
+            $TransportParameters = @{
+                ComputerName = $Target
+                ScriptBlock  = {
+                    param($Session)
 
-            try {
-                $session = New-CimSession `
-                    -ComputerName $Target `
-                    -ErrorAction Stop
-
-                $tasks = Get-ScheduledTask `
-                    -CimSession $session `
-                    -ErrorAction Stop
-
-                foreach ($task in @($tasks)) {
-
-                    $rawAccount = $task.Principal.UserId
-
-                    if ([string]::IsNullOrWhiteSpace($rawAccount)) {
-                        $rawAccount = $task.Principal.GroupId
-                    }
-
-                    $account = $null
-
-                    if ($rawAccount) {
-                        $account = Convert-AssessmentTaskIdentity `
-                            -Identity $rawAccount
-                    }
-
-                    [PSCustomObject][ordered]@{
-                        ComputerName = $Target
-                        TaskName     = $task.TaskPath + $task.TaskName
-                        AccountName  = $account
-                        IsReadOnly   = $true
-                    }
+                    Get-ScheduledTask -CimSession $Session -ErrorAction Stop
                 }
             }
-            finally {
-                if ($session) {
-                    Remove-CimSession `
-                        -CimSession $session `
-                        -ErrorAction SilentlyContinue
+
+            if ($null -ne $Credential) {
+                $TransportParameters.Credential = $Credential
+            }
+
+            $TransportResult = Invoke-AssessmentADRemoteCimQuery @TransportParameters
+
+            if ($TransportResult.Status -ne 'Available') {
+                throw $TransportResult.ErrorMessage
+            }
+
+            foreach ($task in @($TransportResult.Data)) {
+
+                $rawAccount = $task.Principal.UserId
+
+                if ([string]::IsNullOrWhiteSpace($rawAccount)) {
+                    $rawAccount = $task.Principal.GroupId
+                }
+
+                $account = $null
+
+                if ($rawAccount) {
+                    $account = Convert-AssessmentTaskIdentity `
+                        -Identity $rawAccount
+                }
+
+                [PSCustomObject][ordered]@{
+                    ComputerName = $Target
+                    TaskName     = $task.TaskPath + $task.TaskName
+                    AccountName  = $account
+                    Transport    = $TransportResult.Transport
+                    IsReadOnly   = $true
                 }
             }
         }
@@ -190,7 +197,7 @@ function Get-AssessmentADRemoteScheduledTaskAccounts {
     process {
 
         try {
-            Get-AssessmentTasksViaCim -Target $ComputerName
+            Get-AssessmentTasksViaCim -Target $ComputerName -Credential $Credential
         }
         catch {
 

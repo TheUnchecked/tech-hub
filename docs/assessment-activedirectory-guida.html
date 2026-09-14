@@ -279,13 +279,13 @@
       <div class="masthead-main">
         <div class="eyebrow">Guida di riferimento · Modulo PowerShell tech-hub</div>
         <h1 class="title">Assessment.ActiveDirectory</h1>
-        <p class="lede">Modulo di sola lettura per l'assessment di sicurezza Active Directory (delega Kerberos, RBCD, gruppi privilegiati) e per l'assessment generico dell'infrastruttura Windows remota — due capacità intenzionalmente separate, unite dallo stesso motore di reportistica.</p>
+        <p class="lede">Modulo di sola lettura per l'assessment di sicurezza Active Directory (delega Kerberos, RBCD, gruppi privilegiati) e per l'assessment generico dell'infrastruttura Windows remota. Ogni funzione è indipendente e autonoma: nessun motore condiviso, nessun registro, nessun provider — si chiama la funzione che serve e si combinano i risultati.</p>
         <div class="facts">
-          <div class="fact"><b>2</b> capacità distinte</div>
-          <div class="fact"><b>5</b> controlli nel registro</div>
-          <div class="fact"><b>9</b> raccoglitori remoti</div>
+          <div class="fact"><b>5</b> controlli AD diretti</div>
+          <div class="fact"><b>10</b> raccoglitori remoti</div>
           <div class="fact"><b>PS 5.1</b> requisito dichiarato</div>
           <div class="fact"><b>JSON · CSV · HTML</b> export</div>
+          <div class="fact"><b>Nessuna</b> severità calcolata</div>
         </div>
       </div>
       <div class="seal" role="img" aria-label="Sigillo: sola lettura, nessuna modifica ad Active Directory">
@@ -317,100 +317,34 @@
 <section id="panoramica">
   <div class="section-head">
     <div class="section-num">01 — Panoramica</div>
-    <h2>Due capacità, un solo motore di reportistica</h2>
+    <h2>Funzioni dirette, nessun motore condiviso</h2>
   </div>
-  <p class="col-wrap">Il modulo <code>Assessment.ActiveDirectory</code> offre due capacità di assessment volutamente separate: la <strong>sicurezza di Active Directory</strong> (delega Kerberos, RBCD, gruppi privilegiati) e l'<strong>infrastruttura remota generica</strong> (account di servizio, condivisioni, funzionalità Windows). Entrambe scrivono nello stesso oggetto risultato e possono essere esportate con gli stessi tre formati.</p>
+  <p class="col-wrap">Il modulo <code>Assessment.ActiveDirectory</code> offre due gruppi di funzioni: la <strong>sicurezza di Active Directory</strong> (delega Kerberos, RBCD, gruppi privilegiati) e l'<strong>infrastruttura remota generica</strong> (account di servizio, condivisioni, funzionalità Windows, diritti utente). Ogni funzione interroga direttamente (cmdlet Active Directory oppure CIM/WinRM) e restituisce oggetti semplici: nessun registro dei controlli, nessun provider, nessuna severità calcolata. Il giudizio sul rischio resta a chi legge l'output.</p>
 
   <div class="callout">
-    <p><strong>Sola lettura per costruzione.</strong> Il registro dei controlli rifiuta la registrazione di qualunque check che non dichiari <code>IsReadOnly = $true</code> (<code>AssessmentADCheckRegistry.ValidateDefinition</code>). Il modulo non esegue exploitation, credential dumping, movimento laterale, persistenza, ticket forging, bypass, evasione o modifiche di configurazione — dichiarato esplicitamente nel README del modulo.</p>
+    <p><strong>Sola lettura per costruzione.</strong> Nessuna funzione del modulo esegue exploitation, credential dumping, movimento laterale, persistenza, ticket forging, bypass, evasione o modifiche di configurazione — dichiarato esplicitamente nel README del modulo. Ogni raccoglitore remoto accetta al più un <code>-Credential</code> opzionale fornito da chi lo usa.</p>
   </div>
 
   <h3>Per chi è questa guida</h3>
-  <p class="col-wrap">Per chi esegue l'assessment (quali funzioni chiamare, con quali parametri di calibrazione) e per chi legge i report generati. La sezione <a href="#checklist">Checklist</a> è il riferimento rapido durante l'uso; <a href="#note">Note tecniche</a> raccoglie alcune particolarità dell'implementazione che conviene conoscere prima di affidarsi ciecamente ai nomi delle funzioni.</p>
+  <p class="col-wrap">Per chi esegue l'assessment (quali funzioni chiamare, con quali parametri) e per chi legge i report generati. La sezione <a href="#checklist">Checklist</a> è il riferimento rapido durante l'uso.</p>
 </section>
 
 <section id="architettura">
   <div class="section-head">
     <div class="section-num">02 — Architettura</div>
-    <h2>Due percorsi, un risultato condiviso</h2>
+    <h2>Una funzione, una responsabilità</h2>
   </div>
-  <p class="col-wrap">La sicurezza AD passa da un <strong>registro dei controlli</strong>: ogni check è una definizione dichiarativa (CheckId, Categoria, funzione da eseguire, provider richiesti) che il motore <code>Invoke-AssessmentADAssessment</code> risolve dinamicamente ed esegue tramite il <strong>provider</strong> <code>AssessmentADProvider</code>, l'unico punto che tocca davvero Active Directory. L'infrastruttura remota non passa dal registro: gli orchestratori chiamano direttamente i singoli raccoglitori, ciascuno con una propria strategia di trasporto e ripiego.</p>
+  <p class="col-wrap">Non esiste più un motore condiviso. Il flusso è semplicemente:</p>
 
-  <figure class="diagram">
-    <svg viewBox="0 0 980 560" role="img" aria-label="Diagramma: il registro dei controlli alimenta il motore di assessment che usa il provider AssessmentADProvider verso Active Directory; parallelamente gli orchestratori remoti usano nove raccoglitori con trasporto WinRM e ripiego DCOM/WMI verso i computer remoti; entrambi i percorsi confluiscono in AssessmentADAssessmentResult ed escono in JSON, CSV o HTML.">
-      <defs>
-        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
-        </marker>
-      </defs>
+  <ol class="col-wrap">
+    <li>Si chiama una funzione <code>Get-AssessmentAD*</code> (sicurezza AD, diretta su Active Directory) o <code>Get-AssessmentADRemote*</code> (infrastruttura, via CIM/WinRM sul computer remoto). Ognuna funziona da sola.</li>
+    <li>Per lanciarne più di una in sequenza esistono due orchestratori leggeri, entrambi semplici cicli senza stato condiviso: <code>Invoke-AssessmentADAssessment</code> per i quattro controlli di sicurezza AD, <code>Invoke-AssessmentADRemoteAssessment</code> per i raccoglitori remoti su un computer.</li>
+    <li>Il risultato, in entrambi i casi, è un array piatto di oggetti — non un oggetto assessment con stato interno. Le tre funzioni <code>Export-AssessmentADAssessment{Json,Csv,Html}</code> accettano quell'array così com'è, qualunque combinazione di funzioni lo abbia prodotto.</li>
+  </ol>
 
-      <!-- LEFT: registry -> engine -> provider -> AD -->
-      <rect x="20" y="20" width="220" height="55" rx="10" fill="none" stroke="currentColor" class="accent" stroke-width="1.6"/>
-      <text x="130" y="43" text-anchor="middle" font-size="12.5" font-weight="600" class="accent">Registro dei controlli</text>
-      <text x="130" y="60" text-anchor="middle" font-size="10" opacity=".75">5 AssessmentADCheckDefinition</text>
-
-      <rect x="20" y="100" width="220" height="55" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
-      <text x="130" y="123" text-anchor="middle" font-size="12.5" font-weight="600">Invoke-AssessmentAD</text>
-      <text x="130" y="139" text-anchor="middle" font-size="10.5" font-weight="600">Assessment</text>
-
-      <rect x="20" y="180" width="220" height="70" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
-      <text x="130" y="203" text-anchor="middle" font-size="12.5" font-weight="600">AssessmentADProvider</text>
-      <text x="130" y="220" text-anchor="middle" font-size="10" opacity=".7">GetADObjects · GetGroupMembers</text>
-      <text x="130" y="235" text-anchor="middle" font-size="10" opacity=".7">GetDomainInformation</text>
-
-      <rect x="20" y="275" width="220" height="50" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
-      <text x="130" y="305" text-anchor="middle" font-size="11.5">Active Directory (LDAP)</text>
-
-      <line x1="130" y1="75" x2="130" y2="98" stroke="currentColor" class="accent" stroke-width="1.4" marker-end="url(#arrow)"/>
-      <text x="138" y="90" font-size="9.5" class="accent">risolve FunctionName</text>
-      <line x1="130" y1="155" x2="130" y2="178" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
-      <line x1="130" y1="250" x2="130" y2="273" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
-      <text x="138" y="266" font-size="9.5" opacity=".8">sola lettura</text>
-
-      <!-- RIGHT: remote orchestrators -> collectors -> hosts -->
-      <rect x="740" y="20" width="220" height="65" rx="10" fill="none" stroke="currentColor" class="accent" stroke-width="1.6"/>
-      <text x="850" y="42" text-anchor="middle" font-size="11.5" font-weight="600" class="accent">Invoke-AssessmentADRemote</text>
-      <text x="850" y="57" text-anchor="middle" font-size="11.5" font-weight="600" class="accent">Assessment / RemoteLocalGroups</text>
-      <text x="850" y="73" text-anchor="middle" font-size="9.5" opacity=".7">orchestratori, no registro</text>
-
-      <rect x="740" y="115" width="220" height="60" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
-      <text x="850" y="138" text-anchor="middle" font-size="12" font-weight="600">9 raccoglitori</text>
-      <text x="850" y="155" text-anchor="middle" font-size="10" opacity=".75">Get-AssessmentADRemote*</text>
-
-      <rect x="740" y="205" width="220" height="55" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
-      <text x="850" y="228" text-anchor="middle" font-size="11">Computer remoti</text>
-      <text x="850" y="244" text-anchor="middle" font-size="9.5" opacity=".75">WinRM → DCOM/WMI</text>
-
-      <line x1="850" y1="85" x2="850" y2="113" stroke="currentColor" class="accent" stroke-width="1.4" marker-end="url(#arrow)"/>
-      <line x1="850" y1="175" x2="850" y2="203" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
-      <text x="858" y="196" font-size="9.5" opacity=".8">fallback trasporto</text>
-
-      <!-- shared result -->
-      <rect x="330" y="360" width="320" height="100" rx="10" fill="none" stroke="currentColor" stroke-width="1.6"/>
-      <text x="490" y="385" text-anchor="middle" font-size="13" font-weight="600">AssessmentADAssessmentResult</text>
-      <text x="490" y="404" text-anchor="middle" font-size="10" opacity=".75">Findings · Observations · Inventory</text>
-      <text x="490" y="419" text-anchor="middle" font-size="10" opacity=".75">Health · ProviderResults · Summary</text>
-      <text x="490" y="440" text-anchor="middle" font-size="9.5" opacity=".65">SeverityCounts, ProviderStatus, DataAvailability</text>
-
-      <line x1="130" y1="300" x2="330" y2="400" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow)"/>
-      <text x="200" y="345" font-size="9.5" opacity=".8">AddFinding</text>
-      <line x1="850" y1="260" x2="650" y2="400" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow)"/>
-      <text x="740" y="345" font-size="9.5" opacity=".8">AddInventory</text>
-
-      <!-- exports -->
-      <rect x="260" y="490" width="140" height="50" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
-      <text x="330" y="520" text-anchor="middle" font-size="11">Export …Json</text>
-      <rect x="420" y="490" width="140" height="50" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
-      <text x="490" y="520" text-anchor="middle" font-size="11">Export …Csv</text>
-      <rect x="580" y="490" width="140" height="50" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
-      <text x="650" y="520" text-anchor="middle" font-size="11">Export …Html</text>
-
-      <line x1="450" y1="460" x2="330" y2="488" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="490" y1="460" x2="490" y2="488" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="530" y1="460" x2="650" y2="488" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
-    </svg>
-    <figcaption>Due percorsi indipendenti (registro+provider per la sicurezza AD; orchestratori+raccoglitori per l'infrastruttura remota) confluiscono nello stesso oggetto risultato, poi esportabile in tre formati.</figcaption>
-  </figure>
+  <div class="callout">
+    <p><strong>Nessuna severità, nessun provider, nessun registro dei controlli.</strong> Ogni funzione interroga direttamente i cmdlet <code>ActiveDirectory</code> oppure CIM/WinRM. I controlli di sicurezza AD riportano fatti (es. "questo account ha delega non vincolata"), non un giudizio di rischio calcolato: quella valutazione spetta a chi legge il report.</p>
+  </div>
 </section>
 
 <section id="uso">
@@ -427,35 +361,29 @@
     <pre><span class="cmt"># Import</span>
 Import-Module .\Assessment.ActiveDirectory.psd1
 
-<span class="cmt"># Sicurezza AD: tutti i controlli registrati</span>
+<span class="cmt"># Sicurezza AD: i quattro controlli, in un'unica chiamata</span>
 $assessment = Invoke-AssessmentADAssessment <span class="flag">-Verbose</span>
 
-<span class="cmt"># Solo la categoria Delegation</span>
-$assessment = Invoke-AssessmentADAssessment <span class="flag">-Category</span> Delegation
+<span class="cmt"># Solo alcuni controlli</span>
+$assessment = Invoke-AssessmentADAssessment <span class="flag">-CheckId</span> AD-UNCONSTRAINED-DELEGATION,AD-RBCD
 
-<span class="cmt"># Un singolo controllo, calibrato sulla propria baseline organizzativa</span>
-Get-AssessmentADPrivilegedGroup <span class="flag">-ApprovedMemberPatterns</span> 'CONTOSO\PKI-Admins','CONTOSO\svc-backup*' <span class="flag">-ExcludedMemberPatterns</span> 'CONTOSO\svc-monitor'
+<span class="cmt"># Un singolo controllo, chiamato direttamente</span>
+Get-AssessmentADPrivilegedGroup <span class="flag">-GroupPatterns</span> 'CONTOSO\Tier0-*'
 
 <span class="cmt"># Infrastruttura remota generica su un elenco esplicito di server</span>
-'SRV-WEB01','SRV-FILE01' | Invoke-AssessmentADRemoteAssessment <span class="flag">-Collector</span> OSInfo,NetworkShares
+$remote = 'SRV-WEB01','SRV-FILE01' | Invoke-AssessmentADRemoteAssessment <span class="flag">-Collector</span> OSInfo,NetworkShares
 
 <span class="cmt"># Gruppi locali su tutti i server, scoperti automaticamente da AD</span>
-$provider = New-AssessmentADProvider
-Invoke-AssessmentADRemoteLocalGroups <span class="flag">-Provider</span> $provider <span class="flag">-TargetType</span> Server
+Invoke-AssessmentADRemoteLocalGroups <span class="flag">-TargetType</span> Server
 
-<span class="cmt"># Esportazione nei tre formati</span>
+<span class="cmt"># Esportazione nei tre formati (funziona su qualunque array di risultati)</span>
 $assessment | Export-AssessmentADAssessmentJson <span class="flag">-Path</span> C:\Report\ad-assessment.json
 $assessment | Export-AssessmentADAssessmentCsv  <span class="flag">-Path</span> C:\Report\ad-assessment.csv
-$assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> C:\Report\ad-assessment.html</pre>
+$assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> C:\Report\ad-assessment.html <span class="flag">-Title</span> 'contoso.com'</pre>
   </div>
 
   <div class="callout">
-    <p><strong>La variabile <code>$assessment</code> esiste solo in memoria, nella sessione PowerShell corrente.</strong> Le tre righe di export in fondo al blocco sopra devono essere lanciate <em>nella stessa sessione</em> in cui è stato eseguito <code>Invoke-AssessmentADAssessment</code>, prima di chiuderla: se la sessione viene chiusa, o <code>$assessment</code> viene sovrascritta, il risultato è perso e l'assessment va rieseguito. Se un <code>Export-AssessmentAD*</code> restituisce un errore tipo "the supplied object is not a valid AssessmentADAssessmentResult" o un binding null su <code>-Assessment</code>, la causa è quasi sempre questa: <code>$assessment</code> non è (più) valorizzata.</p>
-    <p><strong>I raccoglitori remoti generici non confluiscono automaticamente in <code>$assessment</code>.</strong> Solo <code>AD-REMOTE-LOCAL-GROUPS</code> è guidato dal registro dei controlli e quindi già incluso in <code>$assessment</code>. Le altre nove funzioni <code>Get-AssessmentADRemote*</code> / <code>Invoke-AssessmentADRemoteAssessment</code> restituiscono un oggetto a parte (es. <code>$remote</code>): va catturato ed esportato con una chiamata <code>Export-AssessmentAD*</code> separata, esattamente come <code>$assessment</code>.</p>
-  </div>
-
-  <div class="callout">
-    <p><strong>Differenza filosofica rispetto ad altri toolkit di sola lettura:</strong> qui la <em>severità</em> è calcolata dal check stesso, non lasciata interamente a valle. Ogni check di delega/accesso privilegiato accetta pattern (<code>ApprovedMemberPatterns</code>, <code>ExcludedMemberPatterns</code>, <code>CriticalServicePatterns</code>, <code>SensitiveTargetPatterns</code>…) con cui l'assessor fornisce la propria baseline organizzativa. <strong>Senza fornirli, tutto ricade sui valori predefiniti</strong> (di norma più prudenti/alti): la severità che si legge nei risultati riflette anche quanto la baseline è stata popolata, non solo il dato grezzo.</p>
+    <p><strong>Ogni funzione restituisce oggetti direttamente: niente da tenere in un contenitore speciale.</strong> Gli orchestratori (<code>Invoke-AssessmentADAssessment</code>, <code>Invoke-AssessmentADRemoteAssessment</code>) restituiscono un array piatto, ciascun record marcato con <code>CheckId</code> o <code>Collector</code>. Per combinare sicurezza AD e infrastruttura remota nello stesso report basta sommare i due array: <code>@($assessment) + @($remote) | Export-AssessmentADAssessmentHtml -Path report.html</code>.</p>
   </div>
 </section>
 
@@ -464,101 +392,61 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
     <div class="section-num">04 — Cosa si ottiene</div>
     <h2>L'oggetto risultato e i tre export</h2>
   </div>
-  <p class="col-wrap"><code>AssessmentADAssessmentResult</code> è l'unico oggetto prodotto, popolato in memoria durante l'esecuzione: cinque collezioni (<code>Findings</code>, <code>Observations</code>, <code>Inventory</code>, <code>Health</code>, <code>ProviderResults</code>) più un <code>Summary</code> con conteggi ed severità aggregate, e due indicatori di affidabilità del dato: <code>ProviderStatus</code> (Available/Partial/NotAvailable/Error) e <code>DataAvailability</code> (Complete/Partial/NotAvailable).</p>
+  <p class="col-wrap">Non c'è un oggetto risultato unico: ogni funzione restituisce un array di oggetti PowerShell semplici, con le proprietà rilevanti per quello specifico controllo o raccoglitore. Gli orchestratori aggiungono solo <code>CheckId</code> (sicurezza AD) o <code>Collector</code> (infrastruttura remota) per poter distinguere la provenienza di ogni record una volta combinati.</p>
 
-  <h3>Un Finding reale (delega non vincolata)</h3>
+  <h3>Un record reale (delega non vincolata)</h3>
   <div class="term">
-    <div class="caption">Estratto da Export-AssessmentADAssessmentJson — array Findings</div>
+    <div class="caption">Estratto da Export-AssessmentADAssessmentJson</div>
     <pre>{
-  <span class="flag">"CheckId"</span>:        "AD-UNCONSTRAINED-DELEGATION",
-  <span class="flag">"CheckName"</span>:      "Unconstrained Delegation",
-  <span class="flag">"Title"</span>:          "Unconstrained delegation on SRV-LEGACY01",
-  <span class="flag">"Category"</span>:       "Delegation",
-  <span class="flag">"Severity"</span>:       "High",
-  <span class="flag">"Confidence"</span>:     "High",
-  <span class="flag">"Status"</span>:         "Finding",
-  <span class="flag">"ObjectType"</span>:     "Computer",
-  <span class="flag">"SamAccountName"</span>: "SRV-LEGACY01$",
-  <span class="flag">"Evidence"</span>: {
-    "TrustedForDelegation": true,
-    "AccountEnabled": true,
-    "ServicePrincipalNames": ["HOST/SRV-LEGACY01"]
-  },
-  <span class="flag">"Risk"</span>:           "If this enabled account is compromised, Kerberos authentications to the account can increase the impact of the compromise.",
-  <span class="flag">"Recommendation"</span>: "Review the business requirement, remove unconstrained delegation when it is not required, and prefer a narrowly scoped delegation model.",
-  <span class="flag">"Domain"</span>:         "contoso.com",
-  <span class="flag">"IsReadOnly"</span>:     true
+  <span class="flag">"Name"</span>:                  "SRV-LEGACY01",
+  <span class="flag">"SamAccountName"</span>:        "SRV-LEGACY01$",
+  <span class="flag">"DistinguishedName"</span>:     "CN=SRV-LEGACY01,OU=Servers,DC=contoso,DC=com",
+  <span class="flag">"ObjectGuid"</span>:            "...",
+  <span class="flag">"ObjectClass"</span>:           "computer",
+  <span class="flag">"Enabled"</span>:               true,
+  <span class="flag">"ServicePrincipalNames"</span>: ["HOST/SRV-LEGACY01"],
+  <span class="flag">"Domain"</span>:                "contoso.com",
+  <span class="flag">"IsReadOnly"</span>:            true,
+  <span class="flag">"CheckId"</span>:               "AD-UNCONSTRAINED-DELEGATION"
 }</pre>
   </div>
 
   <div class="grid grid-2" style="margin-top:22px">
     <div class="card">
       <div class="tag">JSON</div>
-      <h4>Documento strutturato</h4>
-      <p><code>SchemaVersion</code>, <code>AssessmentId</code>, <code>Exporter</code>, <code>Assessment.Metadata/Summary</code>, poi gli array <code>Findings</code>/<code>Observations</code>/<code>Inventory</code>/<code>Health</code>/<code>ProviderResults</code> e un blocco <code>Execution</code>. Pensato per l'ingestione (Power BI, ETL) oltre che per l'archiviazione.</p>
+      <h4>Array così com'è</h4>
+      <p>Serializzazione diretta dell'array di record, senza involucro. Pensato per l'ingestione (Power BI, ETL) oltre che per l'archiviazione.</p>
     </div>
     <div class="card">
       <div class="tag">CSV</div>
-      <h4>Un'unica tabella piatta</h4>
-      <p>Ogni riga ha una colonna <code>RecordType</code> (<code>Finding</code>, <code>Inventory</code>, <code>Observation</code>, <code>ProviderResult</code>, <code>CheckResult</code>, o <code>Assessment</code> come riga sentinella se non c'è nient'altro). Pensata per Excel, Power Query, tabelle pivot.</p>
+      <h4>Colonne unite automaticamente</h4>
+      <p>Poiché controlli e raccoglitori diversi restituiscono proprietà diverse, la colonna finale è l'unione di tutte quelle viste in ogni record; dove un record non ha una proprietà, la cella resta vuota. Array e oggetti annidati diventano testo leggibile (elenco separato da <code>;</code> o JSON compatto), non <code>System.Object[]</code>.</p>
     </div>
     <div class="card">
       <div class="tag">HTML</div>
-      <h4>Report navigabile</h4>
-      <p>Pagina autonoma con KPI per severità (Critical/High/Medium/Low/Informational), tabella Findings con dettagli a comparsa (rischio, raccomandazione, evidenza, riferimenti), tabella Inventory e tabella degli errori di esecuzione dei check. Stile in stampa incluso.</p>
-    </div>
-    <div class="card">
-      <div class="tag">Summary</div>
-      <h4>Affidabilità del dato</h4>
-      <p><code>ChecksDiscovered/Executed/Skipped/Failed</code> e <code>SeverityCounts</code> a livello di assessment; <code>ProviderStatus</code>/<code>DataAvailability</code> segnalano se qualche check ha lavorato su dati parziali o assenti — leggerli prima di fidarsi dei conteggi.</p>
+      <h4>Report a card, raggruppato</h4>
+      <p>I record sono raggruppati per <code>CheckId</code>/<code>Collector</code> (o tutti insieme se assenti); ogni record è una card con tutte le sue proprietà elencate, valori complessi resi come elenco leggibile invece che JSON grezzo.</p>
     </div>
   </div>
 </section>
 
 <section id="capacita">
   <div class="section-head">
-    <div class="section-num">05 — Le due capacità</div>
-    <h2>Perché sono tenute separate</h2>
+    <div class="section-num">05 — I due gruppi di funzioni</div>
+    <h2>Perché restano distinti</h2>
   </div>
-  <p class="col-wrap">Il README del modulo è esplicito: le due capacità sono <em>intenzionalmente separate</em>. La sicurezza AD guarda a relazioni di fiducia e privilegio dentro la directory; l'infrastruttura remota guarda a configurazione ed esposizione dei singoli computer, e non è legata al Tier Model — può servire in qualunque assessment di infrastruttura generico.</p>
+  <p class="col-wrap">La sicurezza AD guarda a relazioni di fiducia e privilegio dentro la directory; l'infrastruttura remota guarda a configurazione ed esposizione dei singoli computer, e non è legata a un modello a livelli particolare — può servire in qualunque assessment di infrastruttura generico. Non condividono codice oltre agli esportatori.</p>
 
-  <figure class="diagram">
-    <svg viewBox="0 0 940 380" role="img" aria-label="Confronto tra le due capacità: Capacità 1, AD Security Assessment, con le categorie Delegation (tre controlli) e PrivilegedAccess (due controlli), guidata dal registro; Capacità 2, Remote Infrastructure Assessment, con nove raccoglitori generici, non guidata dal registro e non esclusiva del Tier Model.">
-      <rect x="30" y="40" width="420" height="300" rx="10" fill="none" stroke="currentColor" class="accent" stroke-width="1.5"/>
-      <text x="240" y="70" text-anchor="middle" font-size="13.5" font-weight="600" class="accent">Capacità 1 — AD Security Assessment</text>
-
-      <text x="60" y="105" font-size="11" font-weight="600" opacity=".85">Categoria: Delegation</text>
-      <text x="75" y="125" font-size="10.5" opacity=".75">AD-UNCONSTRAINED-DELEGATION</text>
-      <text x="75" y="142" font-size="10.5" opacity=".75">AD-CONSTRAINED-DELEGATION</text>
-      <text x="75" y="159" font-size="10.5" opacity=".75">AD-RBCD</text>
-
-      <text x="60" y="195" font-size="11" font-weight="600" opacity=".85">Categoria: PrivilegedAccess</text>
-      <text x="75" y="215" font-size="10.5" opacity=".75">AD-PRIVILEGED-GROUP</text>
-      <text x="75" y="232" font-size="10.5" opacity=".75">AD-REMOTE-LOCAL-GROUPS</text>
-
-      <text x="240" y="310" text-anchor="middle" font-size="9.5" opacity=".65">Guidata dal Registro dei controlli</text>
-      <text x="240" y="323" text-anchor="middle" font-size="9.5" opacity=".65">produce sempre oggetti Finding</text>
-
-      <line x1="460" y1="60" x2="460" y2="320" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".5"/>
-
-      <rect x="490" y="40" width="420" height="300" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
-      <text x="700" y="70" text-anchor="middle" font-size="13.5" font-weight="600">Capacità 2 — Remote Infrastructure Assessment</text>
-
-      <text x="520" y="100" font-size="10.5" opacity=".8">Service Accounts</text>
-      <text x="520" y="118" font-size="10.5" opacity=".8">Scheduled Task Accounts</text>
-      <text x="520" y="136" font-size="10.5" opacity=".8">IIS App Pool Accounts</text>
-      <text x="520" y="154" font-size="10.5" opacity=".8">Local Group Members</text>
-      <text x="520" y="172" font-size="10.5" opacity=".8">Network Share ACLs</text>
-      <text x="750" y="100" font-size="10.5" opacity=".8">OS Info</text>
-      <text x="750" y="118" font-size="10.5" opacity=".8">Windows Features</text>
-      <text x="750" y="136" font-size="10.5" opacity=".8">Remote Targets (discovery)</text>
-      <text x="750" y="154" font-size="10.5" opacity=".8">AD Inventory generico</text>
-
-      <text x="700" y="310" text-anchor="middle" font-size="9.5" opacity=".65">Non guidata dal Registro; non legata al Tier Model</text>
-      <text x="700" y="323" text-anchor="middle" font-size="9.5" opacity=".65">popola Inventory, non sempre Findings</text>
-    </svg>
-    <figcaption>Le due capacità non condividono un motore comune di esecuzione: solo l'oggetto risultato finale e gli esportatori sono in comune.</figcaption>
-  </figure>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4>Sicurezza Active Directory</h4>
+      <p><code>Get-AssessmentADUnconstrainedDelegation</code>, <code>Get-AssessmentADConstrainedDelegation</code>, <code>Get-AssessmentADRBCD</code>, <code>Get-AssessmentADPrivilegedGroup</code>, <code>Get-AssessmentADInventory</code>. Interrogano Active Directory direttamente, tipicamente da un'unica postazione con RSAT installato.</p>
+    </div>
+    <div class="card">
+      <h4>Infrastruttura remota generica</h4>
+      <p><code>Get-AssessmentADRemoteTargets</code>, <code>-OSInfo</code>, <code>-WindowsFeatures</code>, <code>-ServiceAccounts</code>, <code>-ScheduledTaskAccounts</code>, <code>-IISAppPoolAccounts</code>, <code>-NetworkShareACLs</code>, <code>-UserRightAssignments</code>, <code>-LocalGroupMembers</code>/<code>-LocalGroups</code>. Interrogano ogni singolo computer remoto via CIM o WinRM.</p>
+    </div>
+  </div>
 </section>
 
 <section id="checklist">
@@ -568,38 +456,39 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
   </div>
 
   <details class="prog" open>
-    <summary><span class="cat">Delegation</span><span class="name">Controlli registrati — sicurezza AD</span><span class="count">5 check</span><span class="chev">▸</span></summary>
+    <summary><span class="cat">Sicurezza AD</span><span class="name">Controlli diretti su Active Directory</span><span class="count">5 funzioni</span><span class="chev">▸</span></summary>
     <div class="body">
-      <p class="purpose">Guidati dal Registro dei controlli: <code>Invoke-AssessmentADAssessment -CheckId ... -Category ...</code> li seleziona e li esegue, oppure si chiama direttamente la funzione <code>Get-AssessmentAD*</code>.</p>
+      <p class="purpose">Si chiamano direttamente, oppure insieme tramite <code>Invoke-AssessmentADAssessment -CheckId ...</code> (le prime quattro). Nessuna calcola una severità.</p>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>CheckId</th><th>Funzione</th><th>Parametri di calibrazione</th><th>Logica di severità (sintesi)</th></tr></thead>
+        <thead><tr><th>Funzione</th><th>Parametri</th><th>Cosa rileva</th></tr></thead>
         <tbody>
-          <tr><td class="idc">AD-UNCONSTRAINED-<br>DELEGATION</td><td class="mono">Get-AssessmentAD<br>UnconstrainedDelegation</td><td>—</td><td><span class="badge high">High</span> se l'account è abilitato, <span class="badge medium">Medium</span> se disabilitato. Rileva il bit <code>TRUSTED_FOR_DELEGATION</code> (0x80000) di userAccountControl su utenti/computer.</td></tr>
-          <tr><td class="idc">AD-CONSTRAINED-<br>DELEGATION</td><td class="mono">Get-AssessmentAD<br>ConstrainedDelegation</td><td><code>-CriticalServicePatterns</code><br><code>-DocumentedServicePatterns</code><br><code>-ExcludedServicePatterns</code></td><td><span class="badge low">Low</span> di base; <span class="badge high">High</span> se il target combacia con un pattern critico; <span class="badge medium">Medium</span> se non documentato o con più destinazioni; <span class="badge info">Informational/NotApplicable</span> se tutte le destinazioni sono escluse. Rileva <code>msDS-AllowedToDelegateTo</code>.</td></tr>
-          <tr><td class="idc">AD-RBCD</td><td class="mono">Get-AssessmentADRBCD</td><td><code>-SensitiveTargetPatterns</code><br><code>-ApprovedIdentityPatterns</code><br><code>-ExcludedIdentityPatterns</code></td><td><span class="badge critical">Critical</span> se il target è sensibile e un SID autorizzato non si risolve; <span class="badge high">High</span> se ci sono SID non risolti; <span class="badge low">Low</span> se l'identità è approvata. Decodifica il descrittore <code>msDS-AllowedToActOnBehalfOfOtherIdentity</code>.</td></tr>
-          <tr><td class="idc">AD-PRIVILEGED-<br>GROUP</td><td class="mono">Get-AssessmentAD<br>PrivilegedGroup</td><td><code>-GroupPatterns</code>, <code>-ApprovedMemberPatterns</code>,<br><code>-ExcludedMemberPatterns</code>,<br><code>-ServiceAccountPatterns</code>, <code>-IncludeDisabled</code></td><td>Matrice a più fattori: <span class="badge critical">Critical</span> per appartenenza indiretta non approvata; <span class="badge high">High</span> per account di servizio o AdminCount=1; <span class="badge medium">Medium</span> per annidamento, account disabilitati o password che non scade mai. Gruppi predefiniti: Domain/Enterprise/Schema Admins, Administrators, Account/Server/Backup Operators, Domain Controllers.</td></tr>
-          <tr><td class="idc">AD-REMOTE-<br>LOCAL-GROUPS</td><td class="mono">Get-AssessmentAD<br>RemoteLocalGroups</td><td>(<code>-ComputerName</code> in pipeline)</td><td><span class="badge high">High</span> per qualunque membro locale o di dominio nel gruppo <code>Administrators</code>; <span class="badge medium">Medium</span> altrove; <span class="badge info">Informational/NotApplicable</span> per principal predefiniti di Windows (BuiltIn/WellKnown).</td></tr>
+          <tr><td class="mono">Get-AssessmentAD<br>UnconstrainedDelegation</td><td>-Server, -SearchBase</td><td>Bit <code>TRUSTED_FOR_DELEGATION</code> (0x80000) di userAccountControl su utenti/computer.</td></tr>
+          <tr><td class="mono">Get-AssessmentAD<br>ConstrainedDelegation</td><td>-Server, -SearchBase</td><td><code>msDS-AllowedToDelegateTo</code> su utenti/computer, con l'elenco completo delle destinazioni.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRBCD</td><td>-Server, -SearchBase</td><td><code>msDS-AllowedToActOnBehalfOfOtherIdentity</code>, decodificato nell'elenco delle identità autorizzate a delegare.</td></tr>
+          <tr><td class="mono">Get-AssessmentAD<br>PrivilegedGroup</td><td>-Server, -SearchBase,<br>-GroupPatterns, -IncludeDisabled</td><td>Membership ricorsiva dei gruppi privilegiati predefiniti (Domain/Enterprise/Schema Admins, Administrators, Account/Server/Backup Operators, Domain Controllers) più eventuali pattern extra.</td></tr>
+          <tr><td class="mono">Get-AssessmentADInventory</td><td>-Server, -SearchBase,<br>-ExpandGroupMembership, -Credential</td><td>Inventario generico: utenti, computer, MSA, gMSA, gruppi, OU, con timestamp di creazione/modifica/password/ultimo accesso.</td></tr>
         </tbody>
       </table></div>
     </div>
   </details>
 
   <details class="prog">
-    <summary><span class="cat">Remote</span><span class="name">Raccoglitori di infrastruttura remota</span><span class="count">9 funzioni</span><span class="chev">▸</span></summary>
+    <summary><span class="cat">Remote</span><span class="name">Raccoglitori di infrastruttura remota</span><span class="count">10 funzioni</span><span class="chev">▸</span></summary>
     <div class="body">
-      <p class="purpose">Non passano dal Registro. Si chiamano direttamente, oppure tramite <code>Invoke-AssessmentADRemoteAssessment -Collector ...</code> (per 7 di esse) o <code>Invoke-AssessmentADRemoteLocalGroups</code> (discovery + raccolta gruppi locali).</p>
+      <p class="purpose">Si chiamano direttamente, oppure tutte insieme tramite <code>Invoke-AssessmentADRemoteAssessment -Collector ...</code> (per le collegate a un <code>Collector</code> qui sotto) o <code>Invoke-AssessmentADRemoteLocalGroups</code> (discovery + raccolta gruppi locali).</p>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Funzione</th><th>Trasporto / ripiego</th><th>Cosa raccoglie</th></tr></thead>
+        <thead><tr><th>Funzione</th><th>Collector</th><th>Trasporto / ripiego</th><th>Cosa raccoglie</th></tr></thead>
         <tbody>
-          <tr><td class="mono">Get-AssessmentADRemoteTargets</td><td>AD (LDAP) + classificazione via RemoteOSInfo</td><td>Scopre i computer in AD; con <code>-TargetType Server/Client/DomainController</code> li classifica interrogando il SO remoto.</td></tr>
-          <tr><td class="mono">Get-AssessmentADRemoteOSInfo</td><td>WinRM → DCOM/WMI</td><td>Caption, versione, build, SKU, ProductType (1=Client, 2=DC, 3=Server).</td></tr>
-          <tr><td class="mono">Get-AssessmentADServiceAccounts</td><td>Invoke-Command (WinRM)</td><td>In una chiamata sola: account di servizi Windows, attività pianificate e pool applicativi IIS.</td></tr>
-          <tr><td class="mono">Get-AssessmentADRemote<br>ScheduledTaskAccounts</td><td>CIM (WinRM) → COM Schedule.Service</td><td>Account di esecuzione di ogni attività pianificata, percorrendo le cartelle ricorsivamente nel ripiego COM.</td></tr>
-          <tr><td class="mono">Get-AssessmentADRemote<br>IISAppPoolAccounts</td><td>Microsoft.Web.Administration → parsing applicationHost.config</td><td>Identità di ogni pool applicativo IIS; risolve utenti specifici via NameTranslate/ADSI.</td></tr>
-          <tr><td class="mono">Get-AssessmentADRemote<br>LocalGroupMembers</td><td>CIM (WinRM → DCOM)</td><td>Dati grezzi Win32_Group/Win32_GroupUser: membri con SID, dominio, LocalAccount, AccountType. Nessuna classificazione di rischio qui.</td></tr>
-          <tr><td class="mono">Get-AssessmentADRemote<br>NetworkShareACLs</td><td>Get-SmbShare/-ShareAccess → Win32_Share/LogicalShareSecuritySetting</td><td>Condivisioni SMB e relative ACL (Full/Change/Read/Custom).</td></tr>
-          <tr><td class="mono">Get-AssessmentADRemote<br>WindowsFeatures</td><td>WinRM (Get-WindowsFeature/-OptionalFeature) → WMI Win32_OptionalFeature</td><td>Ruoli/funzionalità Windows installati. Non abilita mai WinRM, non modifica mai il target.</td></tr>
-          <tr><td class="mono">Get-AssessmentADInventory</td><td>Provider (GetADObjects)</td><td>Inventario generico: utenti, computer, MSA, gMSA, gruppi, OU, con timestamp di creazione/modifica/password/ultimo accesso.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemoteTargets</td><td>—</td><td>AD (LDAP) + classificazione via RemoteOSInfo</td><td>Scopre i computer in AD; con <code>-TargetType Server/Client/DomainController</code> li classifica interrogando il SO remoto.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemoteOSInfo</td><td>OSInfo</td><td>CIM: WSMan → DCOM</td><td>Caption, versione, build, SKU, tipo di installazione (via registro sulla stessa sessione), ProductType (1=Client, 2=DC, 3=Server).</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>WindowsFeatures</td><td>WindowsFeatures</td><td>WinRM (ServerManager/OptionalFeature/DISM) → CIM Win32_OptionalFeature</td><td>Ruoli/funzionalità Windows installati. Non abilita mai WinRM, non modifica mai il target.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>ServiceAccounts</td><td>ServiceAccounts</td><td>CIM: WSMan → DCOM</td><td>Account di logon di ogni servizio Windows (Win32_Service), normalizzato in notazione Dominio\Nome.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>ScheduledTaskAccounts</td><td>ScheduledTasks</td><td>CIM: WSMan → DCOM, ripiego COM Schedule.Service</td><td>Account di esecuzione di ogni attività pianificata.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>IISAppPoolAccounts</td><td>IISAppPools</td><td>Invoke-Command: Microsoft.Web.Administration → parsing applicationHost.config</td><td>Identità di ogni pool applicativo IIS; un host irraggiungibile produce un record con Status=Error invece di sparire.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>NetworkShareACLs</td><td>NetworkShares</td><td>Get-SmbShare/-ShareAccess → Win32_Share/LogicalShareSecuritySetting</td><td>Condivisioni SMB e relative ACL (Full/Change/Read/Custom).</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>UserRightAssignments</td><td>UserRights</td><td>Invoke-Command + secedit</td><td>Diritti utente locali (User Rights Assignment) con nome GPO e assegnatari risolti.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>LocalGroupMembers</td><td>LocalGroups</td><td>CIM: WSMan → DCOM</td><td>Dati grezzi Win32_Group/Win32_GroupUser: un record per gruppo, membri con SID/dominio/LocalAccount/AccountType.</td></tr>
+          <tr><td class="mono">Get-AssessmentADRemote<br>LocalGroups</td><td>—</td><td>(richiama LocalGroupMembers)</td><td>Stesso dato, appiattito a un record per membro, con classificazione LocalAccount/DomainPrincipal/BuiltInPrincipal/WellKnownPrincipal/Unknown.</td></tr>
         </tbody>
       </table></div>
     </div>
@@ -613,12 +502,8 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
   </div>
 
   <div class="callout warn">
-    <p><strong>Tre funzioni per "gruppi locali", tre scopi diversi:</strong></p>
-    <p><code>Get-AssessmentADRemoteLocalGroupMembers</code> è il raccoglitore grezzo (dati, nessun giudizio). <code>Get-AssessmentADRemoteLocalGroups</code> è il <em>check registrato</em> <code>AD-REMOTE-LOCAL-GROUPS</code>: chiama il raccoglitore e produce <code>Finding</code> con severità. <code>Invoke-AssessmentADRemoteLocalGroups</code> è un <em>orchestratore di raccolta massiva</em>: scopre i target da AD (per <code>-TargetType</code>/<code>-SearchBase</code>) e richiama il raccoglitore grezzo su ciascuno, restituendo record piatti <strong>senza</strong> severità. Usare quest'ultimo aspettandosi Finding con Severity è l'errore più facile da fare.</p>
-  </div>
-
-  <div class="callout warn">
-    <p><strong>AD-RBCD non passa dal Provider.</strong> A differenza degli altri tre check di sicurezza AD, <code>Get-AssessmentADRBCD</code> chiama direttamente <code>Get-ADDomain</code>/<code>Get-ADForest</code>/<code>Get-ADObject</code>, non <code>$Provider.GetADObjects(...)</code>. Conseguenza pratica: se il modulo <code>ActiveDirectory</code> non è disponibile, gli altri tre check degradano a un Finding "Informational/NotAvailable" tramite il provider; <code>AD-RBCD</code> invece propaga l'errore del cmdlet così com'è (intercettato comunque dal motore come <code>CheckExecutionError</code>, ma con un messaggio meno uniforme).</p>
+    <p><strong>Due funzioni per "gruppi locali", due forme dello stesso dato:</strong></p>
+    <p><code>Get-AssessmentADRemoteLocalGroupMembers</code> restituisce un record per gruppo, con i membri come array grezzo. <code>Get-AssessmentADRemoteLocalGroups</code> richiama la prima e appiattisce il risultato a un record per membro, aggiungendo la classificazione (LocalAccount/DomainPrincipal/BuiltInPrincipal/WellKnownPrincipal/Unknown). <code>Invoke-AssessmentADRemoteLocalGroups</code> aggiunge solo la discovery dei target da AD davanti a <code>Get-AssessmentADRemoteLocalGroups</code>.</p>
   </div>
 </section>
 
@@ -630,11 +515,11 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
   <div class="grid grid-2">
     <div class="card">
       <h4>Requisiti dichiarati</h4>
-      <p>Windows PowerShell 5.1; modulo RSAT ActiveDirectory per i check di sicurezza; WinRM/WS-Man, CIM, DCOM/RPC secondo il raccoglitore remoto; per IIS remoto, l'assembly <code>Microsoft.Web.Administration</code> (altrimenti si ricade sul parsing XML di <code>applicationHost.config</code>).</p>
+      <p>Windows PowerShell 5.1; modulo RSAT ActiveDirectory per i controlli di sicurezza e per <code>Get-AssessmentADInventory</code>; WinRM/WS-Man, CIM, DCOM/RPC secondo il raccoglitore remoto; per IIS remoto, l'assembly <code>Microsoft.Web.Administration</code> (altrimenti si ricade sul parsing XML di <code>applicationHost.config</code>).</p>
     </div>
     <div class="card">
-      <h4>La severità dipende dalla baseline fornita</h4>
-      <p>Senza <code>-ApprovedMemberPatterns</code>/<code>-CriticalServicePatterns</code>/ecc. popolati con la propria organizzazione, i check ricadono su valori predefiniti prudenti — utile in assenza di dati, ma da non scambiare per un giudizio "oggettivo" indipendente dal contesto.</p>
+      <h4>Nessuna severità calcolata</h4>
+      <p>I controlli di sicurezza AD riportano fatti, non un giudizio di rischio. La valutazione di cosa sia accettabile nel proprio ambiente resta a chi legge il report.</p>
     </div>
     <div class="card">
       <h4>Cosa il modulo esplicitamente non fa</h4>
@@ -642,7 +527,7 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
     </div>
     <div class="card">
       <h4>Raccoglitori remoti: fallback, non garanzia</h4>
-      <p>Ogni raccoglitore prova un trasporto preferito e ne ha uno di ripiego, ma un target completamente isolato (nessun WinRM, nessun DCOM) produce comunque un record con <code>Status: NotAvailable</code> — non un'eccezione che interrompe l'intero assessment.</p>
+      <p>Ogni raccoglitore CIM prova WSMan e ricade su DCOM, ma un target completamente isolato (nessuno dei due raggiungibile) produce comunque un errore per quel computer — non un'eccezione che interrompe l'intero assessment sugli altri.</p>
     </div>
   </div>
 </section>
@@ -652,7 +537,7 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
 <footer>
   <div class="wrap">
     <p><span class="mono">Repository:</span> tech-hub · <span class="mono">percorso:</span> powershell/modules/Assessment.ActiveDirectory/</p>
-    <p>Guida di riferimento per un modulo esistente del repository. La severità riportata dai Finding riflette la logica e i parametri di calibrazione di ciascun check, non una valutazione di conformità indipendente.</p>
+    <p>Guida di riferimento per un modulo esistente del repository. Il modulo riporta fatti raccolti da Active Directory e dai computer remoti; non calcola una severità né una valutazione di conformità.</p>
   </div>
 </footer>
 

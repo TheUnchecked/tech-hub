@@ -3,14 +3,30 @@
 Set-StrictMode -Version Latest
 
 function Export-AssessmentADAssessmentJson {
+    <#
+    .SYNOPSIS
+        Exports assessment/collector results to a JSON file.
 
+    .DESCRIPTION
+        Accepts the flat array of objects returned by Invoke-AssessmentADAssessment,
+        Invoke-AssessmentADRemoteAssessment, or any individual Get-AssessmentAD*
+        function, and serializes it to JSON. No assumption is made about the
+        object shape.
+
+    .PARAMETER InputObject
+        The records to export. Accepts pipeline input.
+
+    .PARAMETER Path
+        Destination file. If omitted, the JSON text is returned instead of written to disk.
+
+    .PARAMETER Depth
+        Serialization depth (1-100, default 20).
+    #>
     [CmdletBinding()]
     param(
-        [Parameter(
-            Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$Assessment,
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [AllowNull()]
+        [object]$InputObject,
 
         [Parameter()]
         [string]$Path,
@@ -20,267 +36,36 @@ function Export-AssessmentADAssessmentJson {
         [int]$Depth = 20
     )
 
+    begin {
+        $AllRecords = New-Object System.Collections.Generic.List[object]
+    }
+
     process {
-
-        if ($null -eq $Assessment) {
-            throw 'Assessment cannot be null.'
+        if ($null -ne $InputObject) {
+            $AllRecords.Add($InputObject)
         }
+    }
 
-        if (-not $Assessment.PSObject.Properties['AssessmentId']) {
-            throw 'The supplied object is not a valid AssessmentADAssessmentResult.'
-        }
-
+    end {
         try {
+            $Json = $AllRecords | ConvertTo-Json -Depth $Depth -ErrorAction Stop
 
-            # ============================================================
-            # ASSESSMENT ID
-            # ============================================================
-
-            $AssessmentId = [string]$Assessment.AssessmentId
-
-
-            # ============================================================
-            # METADATA
-            # ============================================================
-
-            $Metadata = [ordered]@{}
-
-            if ($null -ne $Assessment.PSObject.Properties['Metadata']) {
-
-                foreach ($Property in $Assessment.Metadata.PSObject.Properties) {
-
-                    $Metadata[$Property.Name] = $Property.Value
-                }
+            if ([string]::IsNullOrWhiteSpace($Path)) {
+                return $Json
             }
 
-            # Always guarantee AssessmentId in metadata.
-            $Metadata['AssessmentId'] = $Assessment.AssessmentId
+            $Directory = Split-Path -Path $Path -Parent
 
-
-            # ============================================================
-            # SUMMARY
-            # ============================================================
-
-            $Summary = [ordered]@{}
-
-            if ($null -ne $Assessment.PSObject.Properties['Summary']) {
-
-                foreach ($Property in $Assessment.Summary.PSObject.Properties) {
-
-                    $Summary[$Property.Name] = $Property.Value
-                }
+            if (-not [string]::IsNullOrWhiteSpace($Directory) -and -not (Test-Path -LiteralPath $Directory)) {
+                New-Item -Path $Directory -ItemType Directory -Force -ErrorAction Stop | Out-Null
             }
 
+            [System.IO.File]::WriteAllText($Path, $Json, [System.Text.UTF8Encoding]::new($false))
 
-            # ============================================================
-            # EXECUTION INFORMATION
-            # ============================================================
-
-            $Execution = [ordered]@{
-
-                StartedAt   = $null
-                CompletedAt = $null
-                Duration    = $null
-
-                ProviderStatus  = $null
-                DataAvailability = $null
-
-                IsReadOnly = $true
-            }
-
-            if ($null -ne $Assessment.PSObject.Properties['StartedAt']) {
-                $Execution.StartedAt = $Assessment.StartedAt
-            }
-
-            if ($null -ne $Assessment.PSObject.Properties['CompletedAt']) {
-                $Execution.CompletedAt = $Assessment.CompletedAt
-            }
-
-            if ($null -ne $Assessment.PSObject.Properties['Duration']) {
-                $Execution.Duration = $Assessment.Duration
-            }
-
-            if ($null -ne $Assessment.PSObject.Properties['ProviderStatus']) {
-                $Execution.ProviderStatus = $Assessment.ProviderStatus
-            }
-
-            if ($null -ne $Assessment.PSObject.Properties['DataAvailability']) {
-                $Execution.DataAvailability = $Assessment.DataAvailability
-            }
-
-
-            # ============================================================
-            # FINDINGS
-            # ============================================================
-
-            $Findings = @()
-
-            if ($null -ne $Assessment.PSObject.Properties['Findings']) {
-
-                $Findings = @($Assessment.Findings)
-            }
-
-
-            # ============================================================
-            # OBSERVATIONS
-            # ============================================================
-
-            $Observations = @()
-
-            if ($null -ne $Assessment.PSObject.Properties['Observations']) {
-
-                $Observations = @($Assessment.Observations)
-            }
-
-
-            # ============================================================
-            # INVENTORY
-            # ============================================================
-
-            $Inventory = @()
-
-            if ($null -ne $Assessment.PSObject.Properties['Inventory']) {
-
-                $Inventory = @($Assessment.Inventory)
-            }
-
-
-            # ============================================================
-            # HEALTH
-            # ============================================================
-
-            $Health = @()
-
-            if ($null -ne $Assessment.PSObject.Properties['Health']) {
-
-                $Health = @($Assessment.Health)
-            }
-
-
-            # ============================================================
-            # PROVIDER RESULTS
-            # ============================================================
-
-            $ProviderResults = @()
-
-            if ($null -ne $Assessment.PSObject.Properties['ProviderResults']) {
-
-                $ProviderResults = @($Assessment.ProviderResults)
-            }
-
-
-            # ============================================================
-            # JSON DOCUMENT
-            # ============================================================
-            #
-            # AssessmentId is deliberately exposed at the ROOT level.
-            #
-            # This preserves compatibility with existing consumers:
-            #
-            #     $Object.AssessmentId
-            #
-            # while the structured Assessment.Metadata section remains
-            # available for reporting and Power BI ingestion.
-            #
-            # ============================================================
-
-            $Document = [ordered]@{
-
-                SchemaVersion = '1.0'
-
-                AssessmentId = $AssessmentId
-
-                Exporter = [ordered]@{
-
-                    Name       = 'Assessment.ActiveDirectory'
-                    Format     = 'JSON'
-                    Purpose    = 'Active Directory security assessment export'
-                    IsReadOnly = $true
-                }
-
-                Assessment = [ordered]@{
-
-                    Metadata = [PSCustomObject]$Metadata
-
-                    Summary = [PSCustomObject]$Summary
-                }
-
-                Findings = @(
-                    $Findings
-                )
-
-                Observations = @(
-                    $Observations
-                )
-
-                Inventory = @(
-                    $Inventory
-                )
-
-                Health = @(
-                    $Health
-                )
-
-                ProviderResults = @(
-                    $ProviderResults
-                )
-
-                Execution = [PSCustomObject]$Execution
-            }
-
-
-            # ============================================================
-            # SERIALIZE
-            # ============================================================
-
-            $Json = $Document |
-                ConvertTo-Json `
-                    -Depth $Depth `
-                    -Compress:$false `
-                    -ErrorAction Stop
-
-
-            # ============================================================
-            # FILE OUTPUT
-            # ============================================================
-
-            if (-not [string]::IsNullOrWhiteSpace($Path)) {
-
-                $Directory = Split-Path `
-                    -Path $Path `
-                    -Parent
-
-                if (-not [string]::IsNullOrWhiteSpace($Directory)) {
-
-                    if (-not (Test-Path -LiteralPath $Directory)) {
-
-                        New-Item `
-                            -Path $Directory `
-                            -ItemType Directory `
-                            -Force `
-                            -ErrorAction Stop |
-                            Out-Null
-                    }
-                }
-
-
-                [System.IO.File]::WriteAllText(
-                    $Path,
-                    $Json,
-                    [System.Text.UTF8Encoding]::new($false)
-                )
-
-
-                Get-Item -LiteralPath $Path
-            }
-            else {
-
-                $Json
-            }
+            Get-Item -LiteralPath $Path
         }
         catch {
-
-            throw "Unable to export Assessment AD assessment to JSON: $($_.Exception.Message)"
+            throw "Unable to export to JSON: $($_.Exception.Message)"
         }
     }
 }

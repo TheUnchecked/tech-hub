@@ -13,50 +13,37 @@
 
     FunctionsToExport = @(
     # ------------------------------------------------------------
-    # Active Directory checks
+    # Active Directory security checks (facts only, no severity)
     # ------------------------------------------------------------
 
-    'Get-AssessmentADInventory'
     'Get-AssessmentADUnconstrainedDelegation'
     'Get-AssessmentADConstrainedDelegation'
     'Get-AssessmentADRBCD'
     'Get-AssessmentADPrivilegedGroup'
-    'Get-AssessmentADServiceAccounts'
+    'Get-AssessmentADInventory'
+
+    # ------------------------------------------------------------
+    # Remote infrastructure collectors
+    # ------------------------------------------------------------
+
     'Get-AssessmentADRemoteTargets'
-
-    # ------------------------------------------------------------
-    # Remote assessment collectors
-    # ------------------------------------------------------------
-
-    'Get-AssessmentADRemoteIISAppPoolAccounts'
-    'Get-AssessmentADRemoteLocalGroupMembers'
-    'Get-AssessmentADRemoteNetworkShareACLs'
-    'Get-AssessmentADRemoteScheduledTaskSecurity'
-    'Get-AssessmentADRemoteScheduledTaskAccounts'
     'Get-AssessmentADRemoteOSInfo'
     'Get-AssessmentADRemoteWindowsFeatures'
+    'Get-AssessmentADRemoteServiceAccounts'
+    'Get-AssessmentADRemoteScheduledTaskAccounts'
+    'Get-AssessmentADRemoteIISAppPoolAccounts'
+    'Get-AssessmentADRemoteNetworkShareACLs'
+    'Get-AssessmentADRemoteUserRightAssignments'
+    'Get-AssessmentADRemoteLocalGroupMembers'
     'Get-AssessmentADRemoteLocalGroups'
 
     # ------------------------------------------------------------
-    # Remote assessment orchestration
+    # Orchestration
     # ------------------------------------------------------------
 
-    'Invoke-AssessmentADRemoteLocalGroups'
-
-    # ------------------------------------------------------------
-    # Assessment engine
-    # ------------------------------------------------------------
-
-    'New-AssessmentADAssessmentResult'
-    'New-AssessmentADCheckRegistry'
     'Invoke-AssessmentADAssessment'
     'Invoke-AssessmentADRemoteAssessment'
-
-    # ------------------------------------------------------------
-    # Provider
-    # ------------------------------------------------------------
-
-    'New-AssessmentADProvider'
+    'Invoke-AssessmentADRemoteLocalGroups'
 
     # ------------------------------------------------------------
     # Exporters
