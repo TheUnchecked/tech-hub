@@ -173,6 +173,86 @@ function Invoke-AssessmentADAssessment {
     }
 
     # ============================================================
+    # DOMAIN / FOREST / DOMAIN CONTROLLER CONTEXT
+    # ============================================================
+    #
+    # Individual checks already resolve this per-finding via the
+    # provider. The assessment-level Domain/Forest/DomainController
+    # is what the exported reports (HTML/CSV) show in the header, so
+    # it must be populated once here as well.
+    # ============================================================
+
+    if ($null -ne $Provider) {
+
+        try {
+
+            $DomainResult = $Provider.GetDomainInformation()
+
+            if (
+                $null -ne $DomainResult -and
+                $DomainResult.Status -eq 'Available' -and
+                @($DomainResult.Data).Count -gt 0
+            ) {
+
+                $DomainData = @($DomainResult.Data)[0]
+
+                if ($null -ne $DomainData.PSObject.Properties['DNSRoot']) {
+                    $Assessment.Domain =
+                        [string]$DomainData.PSObject.Properties['DNSRoot'].Value
+                }
+            }
+        }
+        catch {
+
+            Write-Verbose `
+                (
+                    'Unable to collect domain context from provider: {0}' -f
+                    $_.Exception.Message
+                )
+        }
+
+        try {
+
+            $ForestResult = $Provider.GetForestInformation()
+
+            if (
+                $null -ne $ForestResult -and
+                $ForestResult.Status -eq 'Available' -and
+                @($ForestResult.Data).Count -gt 0
+            ) {
+
+                $ForestData = @($ForestResult.Data)[0]
+
+                if ($null -ne $ForestData.PSObject.Properties['Name']) {
+                    $Assessment.Forest =
+                        [string]$ForestData.PSObject.Properties['Name'].Value
+                }
+            }
+        }
+        catch {
+
+            Write-Verbose `
+                (
+                    'Unable to collect forest context from provider: {0}' -f
+                    $_.Exception.Message
+                )
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Server)) {
+
+        $Assessment.DomainController = $Server
+    }
+    elseif (
+        $null -ne $Provider -and
+        $null -ne $Provider.PSObject.Properties['Server'] -and
+        -not [string]::IsNullOrWhiteSpace([string]$Provider.Server)
+    ) {
+
+        $Assessment.DomainController = [string]$Provider.Server
+    }
+
+    # ============================================================
     # EXECUTE CHECKS
     # ============================================================
 
