@@ -133,6 +133,10 @@ function Get-AssessmentADRemoteScheduledTaskAccounts {
             $service = $null
 
             try {
+                if (-not (Test-AssessmentADRemotePortOpen -ComputerName $Target -Port 135 -TimeoutSeconds 10)) {
+                    throw "RPC/DCOM (port 135) on $Target did not respond within 10 second(s)."
+                }
+
                 $service = New-Object -ComObject 'Schedule.Service'
 
                 $service.Connect($Target)

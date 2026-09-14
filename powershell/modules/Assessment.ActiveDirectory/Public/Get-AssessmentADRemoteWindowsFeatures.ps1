@@ -75,6 +75,10 @@ function Get-AssessmentADRemoteWindowsFeatures {
                 Write-Verbose `
                     "[$Computer] Attempting Windows Features collection through WinRM."
 
+                if (-not (Test-AssessmentADRemotePortOpen -ComputerName $Computer -Port 5985 -TimeoutSeconds 10)) {
+                    throw "WinRM (port 5985) on $Computer did not respond within 10 second(s)."
+                }
+
                 $invokeParams = @{
                     ComputerName = $Computer
                     ErrorAction  = 'Stop'

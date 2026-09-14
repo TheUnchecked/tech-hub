@@ -186,6 +186,10 @@ function Get-AssessmentADRemoteUserRightAssignments {
                     & $Collector -CompLabel $NormalizedLabel -Map $SeToGpoName
                 }
                 else {
+                    if (-not (Test-AssessmentADRemotePortOpen -ComputerName $Computer -Port 5985 -TimeoutSeconds 10)) {
+                        throw "WinRM (port 5985) on $Computer did not respond within 10 second(s)."
+                    }
+
                     $InvokeParameters = @{
                         ComputerName    = $Computer
                         ScriptBlock     = $Collector
