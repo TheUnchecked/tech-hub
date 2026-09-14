@@ -450,6 +450,11 @@ $assessment | Export-AssessmentADAssessmentHtml <span class="flag">-Path</span> 
   </div>
 
   <div class="callout">
+    <p><strong>La variabile <code>$assessment</code> esiste solo in memoria, nella sessione PowerShell corrente.</strong> Le tre righe di export in fondo al blocco sopra devono essere lanciate <em>nella stessa sessione</em> in cui è stato eseguito <code>Invoke-AssessmentADAssessment</code>, prima di chiuderla: se la sessione viene chiusa, o <code>$assessment</code> viene sovrascritta, il risultato è perso e l'assessment va rieseguito. Se un <code>Export-AssessmentAD*</code> restituisce un errore tipo "the supplied object is not a valid AssessmentADAssessmentResult" o un binding null su <code>-Assessment</code>, la causa è quasi sempre questa: <code>$assessment</code> non è (più) valorizzata.</p>
+    <p><strong>I raccoglitori remoti generici non confluiscono automaticamente in <code>$assessment</code>.</strong> Solo <code>AD-REMOTE-LOCAL-GROUPS</code> è guidato dal registro dei controlli e quindi già incluso in <code>$assessment</code>. Le altre nove funzioni <code>Get-AssessmentADRemote*</code> / <code>Invoke-AssessmentADRemoteAssessment</code> restituiscono un oggetto a parte (es. <code>$remote</code>): va catturato ed esportato con una chiamata <code>Export-AssessmentAD*</code> separata, esattamente come <code>$assessment</code>.</p>
+  </div>
+
+  <div class="callout">
     <p><strong>Differenza filosofica rispetto ad altri toolkit di sola lettura:</strong> qui la <em>severità</em> è calcolata dal check stesso, non lasciata interamente a valle. Ogni check di delega/accesso privilegiato accetta pattern (<code>ApprovedMemberPatterns</code>, <code>ExcludedMemberPatterns</code>, <code>CriticalServicePatterns</code>, <code>SensitiveTargetPatterns</code>…) con cui l'assessor fornisce la propria baseline organizzativa. <strong>Senza fornirli, tutto ricade sui valori predefiniti</strong> (di norma più prudenti/alti): la severità che si legge nei risultati riflette anche quanto la baseline è stata popolata, non solo il dato grezzo.</p>
   </div>
 </section>
