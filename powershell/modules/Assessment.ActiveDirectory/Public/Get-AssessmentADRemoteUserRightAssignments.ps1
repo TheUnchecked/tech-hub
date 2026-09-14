@@ -178,8 +178,11 @@ function Get-AssessmentADRemoteUserRightAssignments {
 
             $NormalizedLabel = if ($IsLocal) { $env:COMPUTERNAME } else { $Computer }
 
+            Write-Verbose "[$Computer] Collecting user right assignments (secedit)."
+
             try {
                 $Results = if ($IsLocal) {
+                    Write-Verbose "[$Computer] Running secedit locally."
                     & $Collector -CompLabel $NormalizedLabel -Map $SeToGpoName
                 }
                 else {
@@ -195,10 +198,13 @@ function Get-AssessmentADRemoteUserRightAssignments {
                         $InvokeParameters.Credential = $Credential
                     }
 
+                    Write-Verbose "[$Computer] Running secedit through Invoke-Command (WinRM). This can take a moment."
                     Invoke-Command @InvokeParameters
                 }
 
                 $Results | Select-Object -Property ComputerName, AssignmentName, Assignees
+
+                Write-Verbose "[$Computer] User right assignments collected."
             }
             catch {
                 Write-Error -Message "[$Computer] Remote query failed: $($_.Exception.Message)"
