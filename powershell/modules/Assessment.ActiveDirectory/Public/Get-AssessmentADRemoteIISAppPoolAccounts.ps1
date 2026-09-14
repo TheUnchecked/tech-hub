@@ -218,6 +218,10 @@ function Get-AssessmentADRemoteIISAppPoolAccounts {
                 $InvokeParameters.Credential = $Credential
             }
 
+            if (-not (Test-AssessmentADRemotePortOpen -ComputerName $ComputerName -Port 5985 -TimeoutSeconds 10)) {
+                throw "Host $ComputerName is unreachable on WinRM (port 5985) within 10 second(s)."
+            }
+
             Invoke-Command @InvokeParameters
         }
         catch {

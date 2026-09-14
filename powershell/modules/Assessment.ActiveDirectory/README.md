@@ -40,6 +40,12 @@ movement, persistence, ticket forging, bypass, evasion, or configuration
 changes, and it does not contain, request, or store credentials (beyond an
 optional `-Credential` you supply yourself).
 
+Before every WSMan/WinRM (port 5985) or DCOM/RPC (port 135) connection
+attempt, the remote collectors run a bounded TCP reachability check (10
+seconds). A powered-off or unreachable host fails fast with a clear error
+instead of letting `New-CimSession`/`Invoke-Command` hang for minutes, which
+matters when assessing a large number of computers.
+
 ---
 
 ## Requirements

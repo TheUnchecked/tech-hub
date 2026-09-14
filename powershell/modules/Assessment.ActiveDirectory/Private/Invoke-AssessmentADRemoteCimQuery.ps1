@@ -16,6 +16,11 @@ function Invoke-AssessmentADRemoteCimQuery {
             1. WSMan
             2. DCOM
 
+        Before each transport is attempted, a bounded TCP reachability
+        check runs against its port (5985 for WSMan, 135 for DCOM/RPC),
+        so a powered-off or unreachable host fails fast instead of
+        letting New-CimSession hang for minutes.
+
         The session is always removed again, whether the script block
         succeeds or fails.
 
@@ -31,6 +36,10 @@ function Invoke-AssessmentADRemoteCimQuery {
     .PARAMETER ScriptBlock
         Read-only script block. Receives the established CimSession as
         its only parameter and must return the data to collect.
+
+    .PARAMETER TimeoutSeconds
+        Maximum time to wait for each transport's reachability check, in
+        seconds. Default 10.
 
     .OUTPUTS
         Transport
@@ -51,36 +60,46 @@ function Invoke-AssessmentADRemoteCimQuery {
         [System.Management.Automation.PSCredential]$Credential,
 
         [Parameter(Mandatory = $true)]
-        [scriptblock]$ScriptBlock
+        [scriptblock]$ScriptBlock,
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 10
     )
 
     $Session = $null
     $Transport = 'None'
-    $ConnectionError = $null
+    $ConnectionErrorMessage = $null
 
     # ============================================================
     # 1. WSMAN
     # ============================================================
 
-    try {
+    if (Test-AssessmentADRemotePortOpen -ComputerName $ComputerName -Port 5985 -TimeoutSeconds $TimeoutSeconds) {
 
-        $WSManParams = @{
-            ComputerName = $ComputerName
-            ErrorAction  = 'Stop'
+        try {
+
+            $WSManParams = @{
+                ComputerName = $ComputerName
+                ErrorAction  = 'Stop'
+            }
+
+            if ($PSBoundParameters.ContainsKey('Credential')) {
+                $WSManParams.Credential = $Credential
+            }
+
+            $Session = New-CimSession @WSManParams
+
+            $Transport = 'WSMan'
         }
+        catch {
 
-        if ($PSBoundParameters.ContainsKey('Credential')) {
-            $WSManParams.Credential = $Credential
+            $ConnectionErrorMessage = $_.Exception.Message
+            $Session = $null
         }
-
-        $Session = New-CimSession @WSManParams
-
-        $Transport = 'WSMan'
     }
-    catch {
+    else {
 
-        $ConnectionError = $_
-        $Session = $null
+        $ConnectionErrorMessage = "WinRM (port 5985) on $ComputerName did not respond within $TimeoutSeconds second(s)."
     }
 
     # ============================================================
@@ -89,28 +108,35 @@ function Invoke-AssessmentADRemoteCimQuery {
 
     if ($null -eq $Session) {
 
-        try {
+        if (Test-AssessmentADRemotePortOpen -ComputerName $ComputerName -Port 135 -TimeoutSeconds $TimeoutSeconds) {
 
-            $DcomOption = New-CimSessionOption -Protocol Dcom
+            try {
 
-            $DcomParams = @{
-                ComputerName  = $ComputerName
-                SessionOption = $DcomOption
-                ErrorAction   = 'Stop'
+                $DcomOption = New-CimSessionOption -Protocol Dcom
+
+                $DcomParams = @{
+                    ComputerName  = $ComputerName
+                    SessionOption = $DcomOption
+                    ErrorAction   = 'Stop'
+                }
+
+                if ($PSBoundParameters.ContainsKey('Credential')) {
+                    $DcomParams.Credential = $Credential
+                }
+
+                $Session = New-CimSession @DcomParams
+
+                $Transport = 'DCOM'
             }
+            catch {
 
-            if ($PSBoundParameters.ContainsKey('Credential')) {
-                $DcomParams.Credential = $Credential
+                $ConnectionErrorMessage = $_.Exception.Message
+                $Session = $null
             }
-
-            $Session = New-CimSession @DcomParams
-
-            $Transport = 'DCOM'
         }
-        catch {
+        else {
 
-            $ConnectionError = $_
-            $Session = $null
+            $ConnectionErrorMessage = "RPC/DCOM (port 135) on $ComputerName did not respond within $TimeoutSeconds second(s)."
         }
     }
 
@@ -131,8 +157,8 @@ function Invoke-AssessmentADRemoteCimQuery {
             ErrorType = 'RemoteQueryError'
 
             ErrorMessage =
-                if ($null -ne $ConnectionError) {
-                    $ConnectionError.Exception.Message
+                if (-not [string]::IsNullOrWhiteSpace($ConnectionErrorMessage)) {
+                    $ConnectionErrorMessage
                 }
                 else {
                     'Unable to establish a CIM session (WSMan and DCOM both failed).'

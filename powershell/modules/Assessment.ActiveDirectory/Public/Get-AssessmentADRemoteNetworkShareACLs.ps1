@@ -112,10 +112,21 @@ function Get-AssessmentADRemoteNetworkShareACLs {
                 $cimParams.Credential = $Credential
             }
 
-            try {
-                $cimSession = New-CimSession @cimParams
+            if (Test-AssessmentADRemotePortOpen -ComputerName $ComputerName -Port 5985 -TimeoutSeconds 10) {
+                try {
+                    $cimSession = New-CimSession @cimParams
+                }
+                catch {
+                    $cimSession = $null
+                }
             }
-            catch {
+
+            if ($null -eq $cimSession) {
+
+                if (-not (Test-AssessmentADRemotePortOpen -ComputerName $ComputerName -Port 135 -TimeoutSeconds 10)) {
+                    throw "Host $ComputerName is unreachable on WinRM (5985) and RPC/DCOM (135) within 10 second(s)."
+                }
+
                 $option = New-CimSessionOption -Protocol Dcom
 
                 $cimParams.SessionOption = $option
